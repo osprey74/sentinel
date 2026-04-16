@@ -1,7 +1,7 @@
 # HANDOFF.md — Sentinel
 
 **最終更新**: 2026-04-16
-**フェーズ**: Phase 1 MVP — スキャフォールド完了、実装開始前
+**フェーズ**: Phase 1 MVP — コア機能実装完了、Phase 2 準備中
 
 ---
 
@@ -9,30 +9,32 @@
 
 ### 完了済み
 
-- [x] DESIGN.md 作成（596行、全仕様を網羅）
+- [x] DESIGN.md 作成（全仕様を網羅）
 - [x] Reactプロトタイプ作成（Claude.ai上で動作確認済み）
 - [x] Tauri v2 プロジェクトスキャフォールド
-  - [x] package.json / tsconfig.json / vite.config.ts
-  - [x] tauri.conf.json（フレームレス、always-on-top、トレイ格納設定）
-  - [x] Cargo.toml（全依存クレート定義済み）
-  - [x] lib.rs（トレイアイコン、close-to-tray、コマンドスタブ）
-  - [x] capabilities/main.json（必要な権限設定）
-  - [x] App.tsx + コンポーネントスタブ（Header 以外は TODO）
-  - [x] useFocus / useSystemMetrics hooks
-  - [x] 型定義（types/index.ts）
-  - [x] global.css（ダークテーマ変数、基本レイアウト）
 - [x] CLAUDE.md 作成
+- [x] GitHub リポジトリセットアップ（description, topics 設定済み）
+- [x] `npm install` → `npm run tauri dev` で初回ビルド確認
+- [x] トレイアイコン用画像の生成・配置（src-tauri/icons/）
+- [x] capabilities/main.json 修正（tray:default → core:tray:default）
+- [x] ヘッダー ✕ 閉じるボタン実装（ホバー赤ハイライト、クリックでトレイ格納）
+- [x] トレイメニュー拡充（バージョン表示、Show、Settings、Restart、Quit）
+- [x] トレイ右クリック修正（左クリックのみウィンドウ表示）
+- [x] ClockCalendar コンポーネント実装（SVGアナログ時計 + 月間カレンダー）
+- [x] WeatherForecast コンポーネント実装（Open-Meteo API 連携）
+- [x] WeatherIcon コンポーネント（5種類の SVG アイコンスタイル: filled/line/neon/minimal/duotone）
+- [x] PcMetrics コンポーネント実装（CPU/MEM/DISK/NET、C:ドライブのみ表示）
+- [x] Rust バックエンド: sysinfo ポーリング（5秒間隔）+ イベント emit
+- [x] Rust バックエンド: Open-Meteo API 呼び出し（30分間隔）
+- [x] SettingsPanel: 天気アイコンスタイル切替（localStorage で永続化）
+- [x] フォーカス透過率の動作確認（Windows）
+- [x] 透明ウィンドウ角丸クリップ修正（clip-path）
+- [x] WebView2 ボーダー除去（shadow:false + theme:Dark）
 
-### 未完了（Phase 1 タスク）
+### 未完了（Phase 1 残タスク）
 
-- [ ] `npm install` → `npm run tauri dev` で初回ビルド確認
-- [ ] トレイアイコン用画像の配置（src-tauri/icons/）
-- [ ] ClockCalendar コンポーネント実装（アナログ時計 + 月間カレンダー）
-- [ ] WeatherForecast コンポーネント実装（Open-Meteo API 連携）
-- [ ] PcMetrics コンポーネント実装（sysinfo 連携）
-- [ ] Rust バックエンド: sysinfo ポーリング + イベント emit
-- [ ] Rust バックエンド: Open-Meteo API 呼び出し
-- [ ] フォーカス透過率の動作確認（macOS / Windows）
+- [ ] ServiceStatus コンポーネント実装（Phase 2 で本実装予定）
+- [ ] HealthCheck コンポーネント実装（Phase 2 で本実装予定）
 
 ---
 
