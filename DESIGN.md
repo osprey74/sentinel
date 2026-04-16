@@ -158,23 +158,35 @@ app.on_window_event(|window, event| {
 
 **コンテキストメニュー項目:**
 
+- **Sentinel v{version}** — バージョン表示（グレーアウト、操作不可）
+- ── (セパレーター) ──
 - **Show** — ウィンドウを表示＋フォーカス
 - **Settings** — 設定パネルを開いた状態で表示
 - ── (セパレーター) ──
+- **Restart** — アプリケーションを再起動
 - **Quit** — アプリケーションを完全終了
 
 ```rust
 // src-tauri/src/lib.rs — トレイアイコンの初期化
-use tauri::tray::{TrayIconBuilder, TrayIconEvent};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 
+let version = app.package_info().version.to_string();
+let version_label = MenuItemBuilder::new(format!("Sentinel v{}", version))
+    .id("version")
+    .enabled(false)
+    .build(app)?;
 let show = MenuItemBuilder::new("Show").id("show").build(app)?;
 let settings = MenuItemBuilder::new("Settings").id("settings").build(app)?;
+let restart = MenuItemBuilder::new("Restart").id("restart").build(app)?;
 let quit = MenuItemBuilder::new("Quit").id("quit").build(app)?;
 let menu = MenuBuilder::new(app)
+    .item(&version_label)
+    .separator()
     .item(&show)
     .item(&settings)
     .separator()
+    .item(&restart)
     .item(&quit)
     .build()?;
 
@@ -185,16 +197,20 @@ TrayIconBuilder::new()
     .on_menu_event(|app, event| {
         match event.id().as_ref() {
             "show" => {
-                let win = app.get_webview_window("sentinel-main").unwrap();
-                win.show().unwrap();
-                win.set_focus().unwrap();
+                if let Some(win) = app.get_webview_window("sentinel-main") {
+                    let _ = win.show();
+                    let _ = win.set_focus();
+                }
             }
             "settings" => {
-                let win = app.get_webview_window("sentinel-main").unwrap();
-                win.show().unwrap();
-                win.set_focus().unwrap();
-                // フロントエンドに設定パネル表示を通知
-                win.emit("open-settings", ()).unwrap();
+                if let Some(win) = app.get_webview_window("sentinel-main") {
+                    let _ = win.show();
+                    let _ = win.set_focus();
+                    let _ = win.emit("open-settings", ());
+                }
+            }
+            "restart" => {
+                app.restart();
             }
             "quit" => {
                 app.exit(0);
@@ -203,11 +219,19 @@ TrayIconBuilder::new()
         }
     })
     .on_tray_icon_event(|tray, event| {
-        if let TrayIconEvent::Click { .. } = event {
-            let win = tray.app_handle()
-                .get_webview_window("sentinel-main").unwrap();
-            win.show().unwrap();
-            win.set_focus().unwrap();
+        // 左クリックのみでウィンドウ表示（右クリックメニューと競合しないよう）
+        if let TrayIconEvent::Click {
+            button: MouseButton::Left,
+            button_state: MouseButtonState::Up,
+            ..
+        } = event
+        {
+            if let Some(win) =
+                tray.app_handle().get_webview_window("sentinel-main")
+            {
+                let _ = win.show();
+                let _ = win.set_focus();
+            }
         }
     })
     .build(app)?;
@@ -564,10 +588,14 @@ indicator 値マッピングは Fly.io と同一。
 
 ### Phase 1: MVP（1〜2週間）
 - [x] DESIGN.md 作成
-- [ ] Tauri v2 プロジェクト初期化
+- [x] Tauri v2 プロジェクト初期化
+- [x] フレームレスウィンドウ + ドラッグ移動
+- [x] ダークテーマ基本UI
+- [x] システムトレイアイコン + メニュー（バージョン表示・再起動・終了）
+- [x] 閉じるボタン → トレイ格納
+- [x] フォーカス連動透過率
+- [ ] アナログ時計 + カレンダー（ClockCalendar）
 - [ ] PC メトリクス表示（sysinfo）
-- [ ] フレームレスウィンドウ + ドラッグ移動
-- [ ] ダークテーマ基本UI
 - [ ] 天気予報セクション（Open-Meteo API）
 
 ### Phase 2: サービス監視（1週間）
@@ -580,7 +608,6 @@ indicator 値マッピングは Fly.io と同一。
 - [ ] コンパクトモード
 - [ ] 右クリックメニュー
 - [ ] ウィジェット位置記憶
-- [ ] システムトレイアイコン + メニュー
 
 ### Phase 4: 通知・拡張（将来）
 - [ ] ステータス変化時のデスクトップ通知
