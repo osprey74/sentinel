@@ -1,7 +1,7 @@
 use serde::Serialize;
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
-    tray::{TrayIconBuilder, TrayIconEvent},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager, WindowEvent,
 };
 
@@ -36,13 +36,22 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![get_metrics])
         .setup(|app| {
             // ── System Tray ──
+            let version = app.package_info().version.to_string();
+            let version_label = MenuItemBuilder::new(format!("Sentinel v{}", version))
+                .id("version")
+                .enabled(false)
+                .build(app)?;
             let show = MenuItemBuilder::new("Show").id("show").build(app)?;
             let settings = MenuItemBuilder::new("Settings").id("settings").build(app)?;
+            let restart = MenuItemBuilder::new("Restart").id("restart").build(app)?;
             let quit = MenuItemBuilder::new("Quit").id("quit").build(app)?;
             let menu = MenuBuilder::new(app)
+                .item(&version_label)
+                .separator()
                 .item(&show)
                 .item(&settings)
                 .separator()
+                .item(&restart)
                 .item(&quit)
                 .build()?;
 
@@ -64,13 +73,21 @@ pub fn run() {
                             let _ = win.emit("open-settings", ());
                         }
                     }
+                    "restart" => {
+                        app.restart();
+                    }
                     "quit" => {
                         app.exit(0);
                     }
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click { .. } = event {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
                         if let Some(win) =
                             tray.app_handle().get_webview_window("sentinel-main")
                         {

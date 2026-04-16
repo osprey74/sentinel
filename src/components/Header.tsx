@@ -1,3 +1,5 @@
+import { getCurrentWindow } from "@tauri-apps/api/window";
+
 interface HeaderProps {
   elapsed: number;
   showSettings: boolean;
@@ -63,6 +65,23 @@ export default function Header({
           fontFamily: "var(--font-mono)",
         }}>
           {elapsed}s ago
+        </span>
+        <span
+          onClick={(e) => {
+            e.stopPropagation();
+            getCurrentWindow().close();
+          }}
+          style={{
+            fontSize: 11,
+            color: "rgba(255,255,255,0.2)",
+            cursor: "pointer",
+            fontFamily: "var(--font-mono)",
+            transition: "color 0.15s",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = "#E24B4A")}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.2)")}
+        >
+          {"\u2715"}
         </span>
       </div>
     </div>
