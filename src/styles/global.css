@@ -30,13 +30,23 @@
   box-sizing: border-box;
 }
 
-html, body {
+html {
+  background: transparent;
+  overflow: hidden;
+  clip-path: inset(0 round 14px);
+}
+
+body {
   background: transparent;
   overflow: hidden;
   user-select: none;
   font-family: var(--font-ui);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
+}
+
+*:focus {
+  outline: none;
 }
 
 .widget-root {

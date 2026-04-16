@@ -43,29 +43,29 @@ export interface WeatherConfig {
   forecastDays: number;
 }
 
-/** WMO Weather Code icon mapping */
-export const WMO_ICONS: Record<number, { icon: string; label: string }> = {
-  0:  { icon: "\u2600\uFE0F", label: "Clear" },
-  1:  { icon: "\uD83C\uDF24", label: "Mostly clear" },
-  2:  { icon: "\u26C5\uFE0F", label: "Partly cloudy" },
-  3:  { icon: "\u2601\uFE0F", label: "Overcast" },
-  45: { icon: "\uD83C\uDF2B", label: "Fog" },
-  48: { icon: "\uD83C\uDF2B", label: "Fog" },
-  51: { icon: "\uD83C\uDF26", label: "Light drizzle" },
-  53: { icon: "\uD83C\uDF26", label: "Drizzle" },
-  55: { icon: "\uD83C\uDF26", label: "Heavy drizzle" },
-  61: { icon: "\uD83C\uDF27", label: "Light rain" },
-  63: { icon: "\uD83C\uDF27", label: "Rain" },
-  65: { icon: "\uD83C\uDF27", label: "Heavy rain" },
-  71: { icon: "\u2744\uFE0F", label: "Light snow" },
-  73: { icon: "\u2744\uFE0F", label: "Snow" },
-  75: { icon: "\u2744\uFE0F", label: "Heavy snow" },
-  80: { icon: "\uD83C\uDF27", label: "Showers" },
-  81: { icon: "\uD83C\uDF27", label: "Showers" },
-  82: { icon: "\uD83C\uDF27", label: "Heavy showers" },
-  95: { icon: "\u26C8\uFE0F", label: "Thunderstorm" },
-  96: { icon: "\u26C8\uFE0F", label: "Thunderstorm" },
-  99: { icon: "\u26C8\uFE0F", label: "Thunderstorm" },
+/** WMO Weather Code mapping — symbol + color for consistent rendering */
+export const WMO_ICONS: Record<number, { symbol: string; color: string; label: string }> = {
+  0:  { symbol: "☀", color: "#FBBF24", label: "Clear" },
+  1:  { symbol: "🌤", color: "#FBBF24", label: "Mostly clear" },
+  2:  { symbol: "⛅", color: "#94A3B8", label: "Partly cloudy" },
+  3:  { symbol: "☁", color: "#94A3B8", label: "Overcast" },
+  45: { symbol: "🌫", color: "#94A3B8", label: "Fog" },
+  48: { symbol: "🌫", color: "#94A3B8", label: "Fog" },
+  51: { symbol: "🌦", color: "#60A5FA", label: "Light drizzle" },
+  53: { symbol: "🌦", color: "#60A5FA", label: "Drizzle" },
+  55: { symbol: "🌦", color: "#60A5FA", label: "Heavy drizzle" },
+  61: { symbol: "🌧", color: "#3B82F6", label: "Light rain" },
+  63: { symbol: "🌧", color: "#3B82F6", label: "Rain" },
+  65: { symbol: "🌧", color: "#2563EB", label: "Heavy rain" },
+  71: { symbol: "❄", color: "#BAE6FD", label: "Light snow" },
+  73: { symbol: "❄", color: "#BAE6FD", label: "Snow" },
+  75: { symbol: "❄", color: "#7DD3FC", label: "Heavy snow" },
+  80: { symbol: "🌧", color: "#3B82F6", label: "Showers" },
+  81: { symbol: "🌧", color: "#3B82F6", label: "Showers" },
+  82: { symbol: "🌧", color: "#2563EB", label: "Heavy showers" },
+  95: { symbol: "⛈", color: "#A78BFA", label: "Thunderstorm" },
+  96: { symbol: "⛈", color: "#A78BFA", label: "Thunderstorm" },
+  99: { symbol: "⛈", color: "#A78BFA", label: "Thunderstorm" },
 };
 
 /** Status color mapping */

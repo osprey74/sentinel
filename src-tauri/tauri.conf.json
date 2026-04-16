@@ -27,7 +27,9 @@
         "closable": true,
         "skipTaskbar": true,
         "focus": true,
-        "center": true
+        "center": true,
+        "shadow": false,
+        "theme": "Dark"
       }
     ]
   },
