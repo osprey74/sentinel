@@ -96,6 +96,13 @@ sentinel/
 | `weather-update` | Rust → JS | `DayForecast[]` |
 | `open-settings` | Rust → JS | `()` (トレイメニューから) |
 
+## CI/CD
+
+- **cicd**: true
+- **cicd_trigger**: tag push (`v*.*.*`) + workflow_dispatch
+- **cicd_platform**: GitHub Actions (Windows x86_64 + macOS universal)
+- **cicd_note**: タグプッシュで自動ビルド＆ Release ドラフト作成
+
 ## 制約事項
 
 - **terraform apply / destroy は絶対に実行しない**（Polaris Solutions 共通ルール）
