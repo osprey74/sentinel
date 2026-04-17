@@ -45,6 +45,23 @@ struct OpenMeteoDaily {
     precipitation_probability_max: Vec<i32>,
 }
 
+// ── Geocoding Types ──
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GeoResult {
+    name: String,
+    latitude: f64,
+    longitude: f64,
+    country: Option<String>,
+    admin1: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct GeoResponse {
+    results: Option<Vec<GeoResult>>,
+}
+
 // ── Commands ──
 
 #[tauri::command]
@@ -59,13 +76,102 @@ fn get_metrics() -> SystemMetrics {
     }
 }
 
+/// Search cities via Open-Meteo Geocoding API
+#[tauri::command]
+async fn search_location(query: String) -> Result<Vec<GeoResult>, String> {
+    let url = format!(
+        "https://geocoding-api.open-meteo.com/v1/search?name={}&count=5&language=ja",
+        urlencoding(&query)
+    );
+    let resp = reqwest::get(&url).await.map_err(|e| e.to_string())?;
+    let data: GeoResponse = resp.json().await.map_err(|e| e.to_string())?;
+    Ok(data.results.unwrap_or_default())
+}
+
+/// Save weather location to config.toml and restart weather polling
+#[tauri::command]
+async fn set_weather_location(
+    app: tauri::AppHandle,
+    name: String,
+    latitude: f64,
+    longitude: f64,
+) -> Result<(), String> {
+    // Update config file
+    let path = config::config_path();
+    let mut cfg = config::load_config();
+    cfg.weather.location_name = name;
+    cfg.weather.latitude = latitude;
+    cfg.weather.longitude = longitude;
+    let content = toml::to_string_pretty(&cfg).map_err(|e| e.to_string())?;
+    std::fs::write(&path, content).map_err(|e| e.to_string())?;
+
+    // Emit config-changed event so frontend can update
+    let _ = app.emit("weather-location-changed", &cfg.weather);
+
+    // Trigger immediate weather fetch with new location
+    let url = format!(
+        "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FTokyo&forecast_days={}",
+        latitude, longitude, cfg.weather.forecast_days
+    );
+    eprintln!("[weather] Location changed, fetching: {url}");
+    if let Ok(resp) = reqwest::get(&url).await {
+        if let Ok(data) = resp.json::<OpenMeteoResponse>().await {
+            let forecasts: Vec<DayForecast> = data
+                .daily
+                .time
+                .iter()
+                .enumerate()
+                .map(|(i, date)| DayForecast {
+                    date: date.clone(),
+                    weather_code: data.daily.weather_code.get(i).copied().unwrap_or(0),
+                    temp_max: data.daily.temperature_2m_max.get(i).copied().unwrap_or(0.0),
+                    temp_min: data.daily.temperature_2m_min.get(i).copied().unwrap_or(0.0),
+                    precip_probability: data.daily.precipitation_probability_max.get(i).copied().unwrap_or(0),
+                })
+                .collect();
+            let _ = app.emit("weather-update", &forecasts);
+        }
+    }
+    Ok(())
+}
+
+/// Get current weather location from config
+#[tauri::command]
+fn get_weather_location() -> GeoResult {
+    let cfg = config::load_config();
+    GeoResult {
+        name: cfg.weather.location_name,
+        latitude: cfg.weather.latitude,
+        longitude: cfg.weather.longitude,
+        country: None,
+        admin1: None,
+    }
+}
+
+/// Simple URL encoding for the search query
+fn urlencoding(s: &str) -> String {
+    s.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                String::from(b as char)
+            }
+            _ => format!("%{:02X}", b),
+        })
+        .collect()
+}
+
 // ── App Entry ──
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .invoke_handler(tauri::generate_handler![get_metrics])
+        .invoke_handler(tauri::generate_handler![
+            get_metrics,
+            search_location,
+            set_weather_location,
+            get_weather_location,
+        ])
         .setup(|app| {
             // ── Load Config ──
             let cfg = config::load_config();

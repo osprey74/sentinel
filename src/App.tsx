@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { invoke } from "@tauri-apps/api/core";
 import { useFocus } from "./hooks/useFocus";
 import { useWeather } from "./hooks/useWeather";
 import { useSystemMetrics } from "./hooks/useSystemMetrics";
@@ -27,6 +28,14 @@ function App() {
   const [iconStyle, setIconStyle] = useState<IconStyle>(
     () => (localStorage.getItem("sentinel-icon-style") as IconStyle) || "filled"
   );
+  const [locationName, setLocationName] = useState("Loading...");
+
+  // Load location name from config on mount
+  useEffect(() => {
+    invoke<{ name: string }>("get_weather_location").then((loc) => {
+      setLocationName(loc.name);
+    });
+  }, []);
 
   const handleIconStyleChange = useCallback((style: IconStyle) => {
     setIconStyle(style);
@@ -76,12 +85,14 @@ function App() {
           onClose={() => setShowSettings(false)}
           iconStyle={iconStyle}
           onIconStyleChange={handleIconStyleChange}
+          locationName={locationName}
+          onLocationChange={setLocationName}
         />
       ) : (
         <>
           <ClockCalendar />
           <div className="separator" />
-          <WeatherForecast iconStyle={iconStyle} forecast={forecast} />
+          <WeatherForecast iconStyle={iconStyle} forecast={forecast} locationName={locationName} />
           <div className="separator" />
           <PcMetrics metrics={metrics} />
           <div className="separator" />

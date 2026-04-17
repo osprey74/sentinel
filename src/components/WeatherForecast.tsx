@@ -5,9 +5,10 @@ import type { DayForecast } from "../types";
 interface Props {
   iconStyle: IconStyle;
   forecast: DayForecast[];
+  locationName: string;
 }
 
-export default function WeatherForecast({ iconStyle, forecast }: Props) {
+export default function WeatherForecast({ iconStyle, forecast, locationName }: Props) {
 
   if (forecast.length === 0) {
     return (
@@ -32,7 +33,7 @@ export default function WeatherForecast({ iconStyle, forecast }: Props) {
 
   return (
     <div className="section">
-      <div className="section-label">Weather — Tokyo</div>
+      <div className="section-label">Weather — {locationName}</div>
       <div style={{ display: "flex", justifyContent: "space-between" }}>
         {forecast.map((day, i) => (
           <div key={day.date} style={{
