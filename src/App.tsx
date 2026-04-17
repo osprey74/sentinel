@@ -74,6 +74,21 @@ function App() {
     };
   }, []);
 
+  // Save window position on move (debounced)
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const unlisten = getCurrentWindow().onMoved(({ payload }) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        invoke("save_window_position", { x: payload.x, y: payload.y });
+      }, 500);
+    });
+    return () => {
+      clearTimeout(timer);
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
   // Elapsed timer
   useEffect(() => {
     const id = setInterval(() => setElapsed((e) => e + 1), 1000);
@@ -81,7 +96,15 @@ function App() {
   }, []);
 
   if (compact) {
-    return <CompactMode elapsed={elapsed} onDoubleClick={toggleCompact} />;
+    return (
+      <CompactMode
+        elapsed={elapsed}
+        services={services}
+        health={health}
+        focused={focused}
+        onDoubleClick={toggleCompact}
+      />
+    );
   }
 
   return (

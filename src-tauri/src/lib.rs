@@ -235,6 +235,17 @@ async fn set_health_targets(app: tauri::AppHandle, targets: Vec<HealthTargetJs>)
     Ok(())
 }
 
+/// Save window position to config
+#[tauri::command]
+fn save_window_position(x: i32, y: i32) -> Result<(), String> {
+    let path = config::config_path();
+    let mut cfg = config::load_config();
+    cfg.general.position = Some(config::PositionConfig { x, y });
+    let content = toml::to_string_pretty(&cfg).map_err(|e| e.to_string())?;
+    std::fs::write(&path, content).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// Simple URL encoding for the search query
 fn urlencoding(s: &str) -> String {
     s.bytes()
@@ -262,6 +273,7 @@ pub fn run() {
             set_service_targets,
             get_health_targets,
             set_health_targets,
+            save_window_position,
         ])
         .setup(|app| {
             // ── Load Config ──
@@ -329,6 +341,13 @@ pub fn run() {
                     }
                 })
                 .build(app)?;
+
+            // ── Restore Window Position ──
+            if let Some(pos) = &cfg.general.position {
+                if let Some(win) = app.get_webview_window("sentinel-main") {
+                    let _ = win.set_position(tauri::LogicalPosition::new(pos.x, pos.y));
+                }
+            }
 
             // ── System Metrics Polling ──
             let metrics_poll = cfg.metrics.poll_interval_seconds;

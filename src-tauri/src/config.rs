@@ -17,9 +17,16 @@ pub struct AppConfig {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PositionConfig {
+    pub x: i32,
+    pub y: i32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GeneralConfig {
     #[serde(default = "default_poll_interval")]
     pub poll_interval_seconds: u64,
+    pub position: Option<PositionConfig>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -155,7 +162,7 @@ impl Default for AppConfig {
 
 impl Default for GeneralConfig {
     fn default() -> Self {
-        Self { poll_interval_seconds: default_poll_interval() }
+        Self { poll_interval_seconds: default_poll_interval(), position: None }
     }
 }
 
