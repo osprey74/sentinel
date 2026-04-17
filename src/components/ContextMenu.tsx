@@ -5,11 +5,13 @@ import { invoke } from "@tauri-apps/api/core";
 interface ContextMenuProps {
   x: number;
   y: number;
+  dragLocked: boolean;
   onClose: () => void;
   onOpenSettings: () => void;
+  onToggleLock: () => void;
 }
 
-export default function ContextMenu({ x, y, onClose, onOpenSettings }: ContextMenuProps) {
+export default function ContextMenu({ x, y, dragLocked, onClose, onOpenSettings, onToggleLock }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close on click outside or Escape
@@ -30,10 +32,15 @@ export default function ContextMenu({ x, y, onClose, onOpenSettings }: ContextMe
     };
   }, [onClose]);
 
-  const items: { label: string; action: () => void; color?: string }[] = [
+  const items: { label: string; action: () => void; color?: string; check?: boolean }[] = [
     {
       label: "Settings",
       action: () => { onClose(); onOpenSettings(); },
+    },
+    {
+      label: "Lock Position",
+      action: () => { onClose(); onToggleLock(); },
+      check: dragLocked,
     },
     {
       label: "Hide to Tray",
@@ -74,11 +81,24 @@ export default function ContextMenu({ x, y, onClose, onOpenSettings }: ContextMe
             cursor: "pointer",
             fontFamily: "var(--font-ui)",
             transition: "background 0.1s",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
           }}
           onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
           onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
         >
-          {item.label}
+          <span>{item.label}</span>
+          {item.check !== undefined && (
+            <span style={{
+              fontSize: 10,
+              fontFamily: "var(--font-mono)",
+              color: item.check ? "var(--color-ok)" : "var(--text-muted)",
+              fontWeight: 600,
+            }}>
+              {item.check ? "ON" : "OFF"}
+            </span>
+          )}
         </div>
       ))}
     </div>

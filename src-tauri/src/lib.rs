@@ -3,6 +3,7 @@ mod services;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
@@ -247,6 +248,29 @@ async fn set_health_targets(app: tauri::AppHandle, targets: Vec<HealthTargetJs>)
     Ok(())
 }
 
+/// Toggle drag lock and return new state
+#[tauri::command]
+fn toggle_drag_lock(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, DragLockState>,
+    menu_ref: tauri::State<'_, LockMenuItemRef>,
+) -> bool {
+    let prev = state.0.load(Ordering::Relaxed);
+    let new_val = !prev;
+    state.0.store(new_val, Ordering::Relaxed);
+    if let Some(item) = menu_ref.0.lock().unwrap().as_ref() {
+        let _ = item.set_text(if new_val { "🔒 Unlock Position" } else { "Lock Position" });
+    }
+    let _ = app.emit("drag-locked", new_val);
+    new_val
+}
+
+/// Get current drag lock state
+#[tauri::command]
+fn get_drag_locked(state: tauri::State<'_, DragLockState>) -> bool {
+    state.0.load(Ordering::Relaxed)
+}
+
 /// Check if autostart is enabled
 #[tauri::command]
 fn get_autostart(app: tauri::AppHandle) -> bool {
@@ -336,6 +360,8 @@ fn urlencoding(s: &str) -> String {
 // ── Shared State ──
 
 struct WeatherCache(Arc<Mutex<Vec<DayForecast>>>);
+struct DragLockState(Arc<AtomicBool>);
+struct LockMenuItemRef(Mutex<Option<tauri::menu::MenuItem<tauri::Wry>>>);
 
 /// Previous status map for change detection: name -> status
 type StatusMap = Arc<Mutex<HashMap<String, String>>>;
@@ -347,6 +373,7 @@ pub fn run() {
     let weather_cache = Arc::new(Mutex::new(Vec::<DayForecast>::new()));
     let svc_status_map: StatusMap = Arc::new(Mutex::new(HashMap::new()));
     let health_status_map: StatusMap = Arc::new(Mutex::new(HashMap::new()));
+    let drag_locked = Arc::new(AtomicBool::new(false));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -356,6 +383,8 @@ pub fn run() {
             None,
         ))
         .manage(WeatherCache(weather_cache.clone()))
+        .manage(DragLockState(drag_locked.clone()))
+        .manage(LockMenuItemRef(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             get_metrics,
             search_location,
@@ -370,6 +399,8 @@ pub fn run() {
             get_cached_weather,
             get_autostart,
             set_autostart,
+            toggle_drag_lock,
+            get_drag_locked,
         ])
         .setup(move |app| {
             // ── Load Config ──
@@ -383,6 +414,10 @@ pub fn run() {
                 .build(app)?;
             let show = MenuItemBuilder::new("Show").id("show").build(app)?;
             let settings = MenuItemBuilder::new("Settings").id("settings").build(app)?;
+            let lock_pos = MenuItemBuilder::new("Lock Position")
+                .id("lock_position")
+                .build(app)?;
+            let lock_pos_for_tray = lock_pos.clone();
             let restart = MenuItemBuilder::new("Restart").id("restart").build(app)?;
             let quit = MenuItemBuilder::new("Quit").id("quit").build(app)?;
             let menu = MenuBuilder::new(app)
@@ -390,16 +425,18 @@ pub fn run() {
                 .separator()
                 .item(&show)
                 .item(&settings)
+                .item(&lock_pos)
                 .separator()
                 .item(&restart)
                 .item(&quit)
                 .build()?;
 
+            let drag_locked_ref = drag_locked.clone();
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("Sentinel — Status Monitor")
                 .menu(&menu)
-                .on_menu_event(|app, event| match event.id().as_ref() {
+                .on_menu_event(move |app, event| match event.id().as_ref() {
                     "show" => {
                         if let Some(win) = app.get_webview_window("sentinel-main") {
                             let _ = win.show();
@@ -412,6 +449,13 @@ pub fn run() {
                             let _ = win.set_focus();
                             let _ = win.emit("open-settings", ());
                         }
+                    }
+                    "lock_position" => {
+                        let prev = drag_locked_ref.load(Ordering::Relaxed);
+                        let new_val = !prev;
+                        drag_locked_ref.store(new_val, Ordering::Relaxed);
+                        let _ = lock_pos_for_tray.set_text(if new_val { "🔒 Unlock Position" } else { "Lock Position" });
+                        let _ = app.emit("drag-locked", new_val);
                     }
                     "restart" => {
                         app.restart();
@@ -437,6 +481,12 @@ pub fn run() {
                     }
                 })
                 .build(app)?;
+
+            // Store lock menu item reference for commands to update text
+            {
+                let state = app.state::<LockMenuItemRef>();
+                *state.0.lock().unwrap() = Some(lock_pos);
+            }
 
             // ── Restore Window Position ──
             if let Some(pos) = &cfg.general.position {

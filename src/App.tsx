@@ -31,8 +31,17 @@ function App() {
   const [theme, setTheme] = useState<"dark" | "light">(
     () => (localStorage.getItem("sentinel-theme") as "dark" | "light") || "dark"
   );
+  const [dragLocked, setDragLocked] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+
+  // Listen for drag lock toggle from tray menu
+  useEffect(() => {
+    const unlisten = getCurrentWindow().listen<boolean>("drag-locked", (event) => {
+      setDragLocked(event.payload);
+    });
+    return () => { unlisten.then((fn) => fn()); };
+  }, []);
 
   // Apply theme to document
   useEffect(() => {
@@ -124,6 +133,7 @@ function App() {
         elapsed={elapsed}
         showSettings={showSettings}
         onToggleSettings={toggleSettings}
+        dragLocked={dragLocked}
       />
 
       {showSettings ? (
@@ -154,8 +164,12 @@ function App() {
         <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
+          dragLocked={dragLocked}
           onClose={() => setContextMenu(null)}
           onOpenSettings={() => setShowSettings(true)}
+          onToggleLock={() => {
+            invoke<boolean>("toggle_drag_lock").then(setDragLocked);
+          }}
         />
       )}
     </div>

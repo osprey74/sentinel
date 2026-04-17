@@ -4,23 +4,25 @@ interface HeaderProps {
   elapsed: number;
   showSettings: boolean;
   onToggleSettings: () => void;
+  dragLocked: boolean;
 }
 
 export default function Header({
   elapsed,
   showSettings,
   onToggleSettings,
+  dragLocked,
 }: HeaderProps) {
   return (
     <div
-      data-tauri-drag-region
+      {...(!dragLocked ? { "data-tauri-drag-region": true } : {})}
       style={{
         padding: "10px 14px",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         borderBottom: "1px solid var(--border-subtle)",
-        cursor: "grab",
+        cursor: dragLocked ? "default" : "grab",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
