@@ -40,10 +40,12 @@ interface SettingsPanelProps {
   onIconStyleChange: (style: IconStyle) => void;
   locationName: string;
   onLocationChange: (name: string) => void;
+  theme: "dark" | "light";
+  onThemeChange: (theme: "dark" | "light") => void;
 }
 
 export default function SettingsPanel({
-  onClose, iconStyle, onIconStyleChange, locationName, onLocationChange,
+  onClose, iconStyle, onIconStyleChange, locationName, onLocationChange, theme, onThemeChange,
 }: SettingsPanelProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<GeoResult[]>([]);
@@ -53,10 +55,21 @@ export default function SettingsPanel({
   // Service/health targets loaded from config
   const [serviceTargets, setServiceTargets] = useState<ServiceTarget[] | null>(null);
   const [healthTargets, setHealthTargets] = useState<HealthTarget[] | null>(null);
+  const [autostart, setAutostart] = useState<boolean | null>(null);
 
   useEffect(() => {
     invoke<ServiceTarget[]>("get_service_targets").then(setServiceTargets);
     invoke<HealthTarget[]>("get_health_targets").then(setHealthTargets);
+    invoke<boolean>("get_autostart").then(setAutostart);
+  }, []);
+
+  const handleAutostart = useCallback(async (enabled: boolean) => {
+    try {
+      await invoke("set_autostart", { enabled });
+      setAutostart(enabled);
+    } catch (e) {
+      console.error("Failed to set autostart:", e);
+    }
   }, []);
 
   const handleSearch = useCallback(async () => {
@@ -114,7 +127,7 @@ export default function SettingsPanel({
     <div>
       <div className="section" style={{ paddingBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.6)" }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }}>
             Settings
           </span>
           <span
@@ -124,6 +137,58 @@ export default function SettingsPanel({
             done
           </span>
         </div>
+
+        {/* Theme */}
+        <div style={{ marginBottom: 14 }}>
+          <SectionLabel>Theme</SectionLabel>
+          <div style={{ display: "flex", gap: 4 }}>
+            {(["dark", "light"] as const).map((t) => {
+              const selected = theme === t;
+              return (
+                <div
+                  key={t}
+                  onClick={() => onThemeChange(t)}
+                  style={{
+                    flex: 1, padding: "6px 10px", borderRadius: 8, cursor: "pointer",
+                    textAlign: "center", fontSize: 11, fontFamily: "var(--font-mono)",
+                    background: selected ? "rgba(29, 158, 117, 0.15)" : "var(--bg-card)",
+                    border: selected ? "1px solid rgba(29, 158, 117, 0.4)" : "1px solid var(--border-faint)",
+                    color: selected ? "var(--color-ok)" : "var(--text-secondary)",
+                    fontWeight: selected ? 600 : 400,
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {t === "dark" ? "🌙 Dark" : "☀ Light"}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Autostart */}
+        {autostart !== null && (
+          <div style={{ marginBottom: 14 }}>
+            <SectionLabel>Startup</SectionLabel>
+            <div
+              onClick={() => handleAutostart(!autostart)}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "6px 10px", borderRadius: 8, cursor: "pointer",
+                background: "var(--bg-card)", border: "1px solid var(--border-faint)",
+              }}
+            >
+              <span style={{ fontSize: 11, color: "var(--text-primary)" }}>
+                Launch on startup
+              </span>
+              <span style={{
+                fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600,
+                color: autostart ? "var(--color-ok)" : "var(--text-tertiary)",
+              }}>
+                {autostart ? "ON" : "OFF"}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Weather Location */}
         <div style={{ marginBottom: 14 }}>

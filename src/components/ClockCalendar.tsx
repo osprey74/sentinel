@@ -56,7 +56,7 @@ function AnalogClock({ now }: { now: Date }) {
         cx={cx + Math.cos(angle) * r}
         cy={cy + Math.sin(angle) * r}
         r={dotR}
-        fill={isHour ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.15)"}
+        fill={isHour ? "var(--clock-dot-hour)" : "var(--clock-dot-min)"}
       />
     );
   }
@@ -64,8 +64,8 @@ function AnalogClock({ now }: { now: Date }) {
   return (
     <svg width={size} height={size} style={{ flexShrink: 0 }}>
       {dots}
-      {hand(hourAngle, r * 0.5, 3, "rgba(255,255,255,0.85)")}
-      {hand(minuteAngle, r * 0.72, 2, "rgba(255,255,255,0.7)")}
+      {hand(hourAngle, r * 0.5, 3, "var(--clock-hand)")}
+      {hand(minuteAngle, r * 0.72, 2, "var(--clock-hand-min)")}
       {hand(secondAngle, r * 0.82, 0.8, "#E24B4A")}
       <circle cx={cx} cy={cy} r={2.5} fill="#E24B4A" />
     </svg>
@@ -100,7 +100,7 @@ function MiniCalendar({ now }: { now: Date }) {
         {dayNames.map((d) => (
           <div key={d} style={{
             textAlign: "center",
-            color: d === "Su" ? "var(--sunday)" : d === "Sa" ? "var(--saturday)" : "rgba(255,255,255,0.3)",
+            color: d === "Su" ? "var(--sunday)" : d === "Sa" ? "var(--saturday)" : "var(--text-tertiary)",
             fontSize: 8,
             fontWeight: 600,
             paddingBottom: 2,
@@ -126,7 +126,7 @@ function MiniCalendar({ now }: { now: Date }) {
                     ? "var(--sunday)"
                     : dow === 6
                       ? "var(--saturday)"
-                      : "rgba(255,255,255,0.5)",
+                      : "var(--text-secondary)",
               background: isToday ? "var(--color-ok)" : "transparent",
               borderRadius: isToday ? 3 : 0,
               fontWeight: isToday ? 600 : 400,

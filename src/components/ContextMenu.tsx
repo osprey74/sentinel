@@ -56,11 +56,11 @@ export default function ContextMenu({ x, y, onClose, onOpenSettings }: ContextMe
         zIndex: 1000,
         minWidth: 140,
         padding: "4px 0",
-        background: "rgba(30, 30, 38, 0.95)",
+        background: "var(--bg-widget)",
         backdropFilter: "blur(12px)",
         borderRadius: 8,
-        border: "1px solid rgba(255,255,255,0.1)",
-        boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+        border: "1px solid var(--border-widget)",
+        boxShadow: "var(--shadow-widget)",
       }}
     >
       {items.map((item, i) => (
@@ -75,7 +75,7 @@ export default function ContextMenu({ x, y, onClose, onOpenSettings }: ContextMe
             fontFamily: "var(--font-ui)",
             transition: "background 0.1s",
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
+          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
           onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
         >
           {item.label}

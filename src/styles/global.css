@@ -1,6 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap');
 
-:root {
+/* ── Dark Theme (default) ── */
+:root,
+[data-theme="dark"] {
   --font-ui: 'BIZ UDGothic', 'Hiragino Sans', sans-serif;
   --font-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
 
@@ -14,6 +16,8 @@
   --bg-hover: rgba(255, 255, 255, 0.06);
   --border-subtle: rgba(255, 255, 255, 0.06);
   --border-faint: rgba(255, 255, 255, 0.04);
+  --border-widget: rgba(255, 255, 255, 0.08);
+  --shadow-widget: 0 12px 48px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.3);
 
   --text-primary: #E8E8EC;
   --text-secondary: rgba(255, 255, 255, 0.45);
@@ -22,6 +26,44 @@
 
   --sunday: #E24B4A;
   --saturday: #85B7EB;
+
+  --clock-dot-hour: rgba(255, 255, 255, 0.6);
+  --clock-dot-min: rgba(255, 255, 255, 0.15);
+  --clock-hand: rgba(255, 255, 255, 0.85);
+  --clock-hand-min: rgba(255, 255, 255, 0.7);
+
+  --separator: rgba(255, 255, 255, 0.05);
+  --section-label: rgba(255, 255, 255, 0.28);
+  --header-dots: rgba(255, 255, 255, 0.15);
+  --header-title: rgba(255, 255, 255, 0.65);
+  --header-icon: rgba(255, 255, 255, 0.2);
+}
+
+/* ── Light Theme ── */
+[data-theme="light"] {
+  --bg-widget: rgba(245, 245, 248, 0.92);
+  --bg-card: rgba(0, 0, 0, 0.03);
+  --bg-hover: rgba(0, 0, 0, 0.05);
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-faint: rgba(0, 0, 0, 0.04);
+  --border-widget: rgba(0, 0, 0, 0.1);
+  --shadow-widget: 0 12px 48px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
+
+  --text-primary: #1A1A2E;
+  --text-secondary: rgba(0, 0, 0, 0.5);
+  --text-tertiary: rgba(0, 0, 0, 0.3);
+  --text-muted: rgba(0, 0, 0, 0.15);
+
+  --clock-dot-hour: rgba(0, 0, 0, 0.5);
+  --clock-dot-min: rgba(0, 0, 0, 0.12);
+  --clock-hand: rgba(0, 0, 0, 0.75);
+  --clock-hand-min: rgba(0, 0, 0, 0.55);
+
+  --separator: rgba(0, 0, 0, 0.06);
+  --section-label: rgba(0, 0, 0, 0.35);
+  --header-dots: rgba(0, 0, 0, 0.15);
+  --header-title: rgba(0, 0, 0, 0.55);
+  --header-icon: rgba(0, 0, 0, 0.25);
 }
 
 * {
@@ -55,14 +97,14 @@ body {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-widget);
+  box-shadow: var(--shadow-widget);
   overflow: hidden;
 }
 
 .separator {
   height: 1px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--separator);
   margin: 0 14px;
 }
 
@@ -73,7 +115,7 @@ body {
 .section-label {
   font-size: 9px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.28);
+  color: var(--section-label);
   text-transform: uppercase;
   letter-spacing: 1.2px;
   font-family: var(--font-ui);

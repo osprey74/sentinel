@@ -28,8 +28,21 @@ function App() {
     () => (localStorage.getItem("sentinel-icon-style") as IconStyle) || "filled"
   );
   const [locationName, setLocationName] = useState("Loading...");
+  const [theme, setTheme] = useState<"dark" | "light">(
+    () => (localStorage.getItem("sentinel-theme") as "dark" | "light") || "dark"
+  );
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+
+  // Apply theme to document
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
+
+  const handleThemeChange = useCallback((t: "dark" | "light") => {
+    setTheme(t);
+    localStorage.setItem("sentinel-theme", t);
+  }, []);
 
   // Auto-resize window to fit content
   useEffect(() => {
@@ -120,6 +133,8 @@ function App() {
           onIconStyleChange={handleIconStyleChange}
           locationName={locationName}
           onLocationChange={setLocationName}
+          theme={theme}
+          onThemeChange={handleThemeChange}
         />
       ) : (
         <>

@@ -247,6 +247,26 @@ async fn set_health_targets(app: tauri::AppHandle, targets: Vec<HealthTargetJs>)
     Ok(())
 }
 
+/// Check if autostart is enabled
+#[tauri::command]
+fn get_autostart(app: tauri::AppHandle) -> bool {
+    use tauri_plugin_autostart::ManagerExt;
+    app.autolaunch().is_enabled().unwrap_or(false)
+}
+
+/// Toggle autostart
+#[tauri::command]
+fn set_autostart(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    use tauri_plugin_autostart::ManagerExt;
+    let manager = app.autolaunch();
+    if enabled {
+        manager.enable().map_err(|e| e.to_string())?;
+    } else {
+        manager.disable().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 /// Get cached weather data (for initial load)
 #[tauri::command]
 fn get_cached_weather(state: tauri::State<'_, WeatherCache>) -> Vec<DayForecast> {
@@ -331,6 +351,10 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .manage(WeatherCache(weather_cache.clone()))
         .invoke_handler(tauri::generate_handler![
             get_metrics,
@@ -344,6 +368,8 @@ pub fn run() {
             save_window_position,
             quit_app,
             get_cached_weather,
+            get_autostart,
+            set_autostart,
         ])
         .setup(move |app| {
             // ── Load Config ──

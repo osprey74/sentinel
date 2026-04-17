@@ -30,14 +30,14 @@ export default function Header({
               key={i}
               style={{
                 width: 6, height: 6, borderRadius: "50%",
-                background: "rgba(255,255,255,0.15)",
+                background: "var(--header-dots)",
               }}
             />
           ))}
         </div>
         <span style={{
           fontSize: 13, fontWeight: 600,
-          color: "rgba(255,255,255,0.65)",
+          color: "var(--header-title)",
           letterSpacing: 0.5,
         }}>
           Sentinel
@@ -48,7 +48,7 @@ export default function Header({
           onClick={(e) => { e.stopPropagation(); onToggleSettings(); }}
           style={{
             fontSize: 11,
-            color: showSettings ? "var(--color-ok)" : "rgba(255,255,255,0.2)",
+            color: showSettings ? "var(--color-ok)" : "var(--header-icon)",
             cursor: "pointer",
             fontFamily: "var(--font-mono)",
             transition: "color 0.15s",
@@ -58,7 +58,7 @@ export default function Header({
         </span>
         <span style={{
           fontSize: 10,
-          color: "rgba(255,255,255,0.2)",
+          color: "var(--header-icon)",
           fontFamily: "var(--font-mono)",
         }}>
           {elapsed}s ago
@@ -70,13 +70,13 @@ export default function Header({
           }}
           style={{
             fontSize: 11,
-            color: "rgba(255,255,255,0.2)",
+            color: "var(--header-icon)",
             cursor: "pointer",
             fontFamily: "var(--font-mono)",
             transition: "color 0.15s",
           }}
           onMouseEnter={(e) => (e.currentTarget.style.color = "#E24B4A")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.2)")}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "")}
         >
           {"\u2715"}
         </span>
