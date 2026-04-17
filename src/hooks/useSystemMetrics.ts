@@ -16,6 +16,7 @@ export function useSystemMetrics(): SystemMetrics {
     mem: 0,
     diskFree: 0,
     diskTotal: 0,
+    disks: [],
     netDown: 0,
     netUp: 0,
   });

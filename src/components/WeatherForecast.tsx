@@ -62,8 +62,15 @@ export default function WeatherForecast({ iconStyle, forecast, locationName }: P
             </div>
             <div style={{
               fontSize: 9,
+              color: day.precipProbability >= 50 ? "#60A5FA" : "var(--text-tertiary)",
+              fontWeight: day.precipProbability >= 50 ? 600 : 400,
+            }}>
+              {day.precipProbability}%
+            </div>
+            <div style={{
+              fontSize: 9,
               color: "var(--text-secondary)",
-              marginTop: 2,
+              marginTop: 1,
             }}>
               {dayLabel(day.date, i)}
             </div>

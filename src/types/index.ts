@@ -1,9 +1,17 @@
+/** Single disk drive info */
+export interface DiskInfo {
+  label: string;
+  free: number;
+  total: number;
+}
+
 /** PC hardware metrics from sysinfo */
 export interface SystemMetrics {
   cpu: number;
   mem: number;
   diskFree: number;
   diskTotal: number;
+  disks: DiskInfo[];
   netDown: number;
   netUp: number;
 }

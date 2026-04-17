@@ -2,6 +2,7 @@ mod config;
 mod services;
 
 use serde::{Deserialize, Serialize};
+use std::sync::{Arc, Mutex};
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -12,11 +13,20 @@ use tauri::{
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct DiskInfo {
+    label: String,
+    free: u64,
+    total: u64,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct SystemMetrics {
     cpu: f32,
     mem: f32,
     disk_free: u64,
     disk_total: u64,
+    disks: Vec<DiskInfo>,
     net_down: f64,
     net_up: f64,
 }
@@ -71,6 +81,7 @@ fn get_metrics() -> SystemMetrics {
         mem: 0.0,
         disk_free: 0,
         disk_total: 0,
+        disks: vec![],
         net_down: 0.0,
         net_up: 0.0,
     }
@@ -235,6 +246,12 @@ async fn set_health_targets(app: tauri::AppHandle, targets: Vec<HealthTargetJs>)
     Ok(())
 }
 
+/// Get cached weather data (for initial load)
+#[tauri::command]
+fn get_cached_weather(state: tauri::State<'_, WeatherCache>) -> Vec<DayForecast> {
+    state.0.lock().unwrap().clone()
+}
+
 /// Quit the application
 #[tauri::command]
 fn quit_app(app: tauri::AppHandle) {
@@ -264,12 +281,19 @@ fn urlencoding(s: &str) -> String {
         .collect()
 }
 
+// ── Shared State ──
+
+struct WeatherCache(Arc<Mutex<Vec<DayForecast>>>);
+
 // ── App Entry ──
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let weather_cache = Arc::new(Mutex::new(Vec::<DayForecast>::new()));
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .manage(WeatherCache(weather_cache.clone()))
         .invoke_handler(tauri::generate_handler![
             get_metrics,
             search_location,
@@ -281,8 +305,9 @@ pub fn run() {
             set_health_targets,
             save_window_position,
             quit_app,
+            get_cached_weather,
         ])
-        .setup(|app| {
+        .setup(move |app| {
             // ── Load Config ──
             let cfg = config::load_config();
 
@@ -386,21 +411,29 @@ pub fn run() {
                         0.0
                     };
 
-                    let disks = Disks::new_with_refreshed_list();
-                    let (disk_free, disk_total) = disks
+                    let disks_list = Disks::new_with_refreshed_list();
+                    // Collect all local drives with non-zero free space
+                    let mut all_disks: Vec<DiskInfo> = disks_list
                         .iter()
-                        .find(|d| {
-                            let mp = d.mount_point().to_string_lossy();
-                            mp == "C:\\" || mp == "/"
+                        .filter(|d| d.total_space() > 0 && d.available_space() > 0)
+                        .map(|d| {
+                            let mp = d.mount_point().to_string_lossy().to_string();
+                            let label = mp.trim_end_matches('\\').to_string();
+                            DiskInfo {
+                                label,
+                                free: d.available_space(),
+                                total: d.total_space(),
+                            }
                         })
-                        .map(|d| (d.available_space(), d.total_space()))
-                        .unwrap_or_else(|| {
-                            disks
-                                .iter()
-                                .max_by_key(|d| d.total_space())
-                                .map(|d| (d.available_space(), d.total_space()))
-                                .unwrap_or((0, 0))
-                        });
+                        .collect();
+                    all_disks.sort_by(|a, b| a.label.cmp(&b.label));
+                    // Primary disk for backward compat
+                    let primary = all_disks.iter()
+                        .find(|d| d.label == "C:" || d.label == "/")
+                        .or_else(|| all_disks.first());
+                    let (disk_free, disk_total) = primary
+                        .map(|d| (d.free, d.total))
+                        .unwrap_or((0, 0));
 
                     let (rx_bytes, tx_bytes) =
                         networks.iter().fold((0u64, 0u64), |(r, t), (_, data)| {
@@ -414,6 +447,7 @@ pub fn run() {
                         mem,
                         disk_free,
                         disk_total,
+                        disks: all_disks,
                         net_down,
                         net_up,
                     };
@@ -424,6 +458,7 @@ pub fn run() {
             // ── Weather Polling ──
             let weather_cfg = cfg.weather.clone();
             let weather_handle = app.handle().clone();
+            let weather_cache_ref = weather_cache.clone();
             tauri::async_runtime::spawn(async move {
                 let client = reqwest::Client::new();
                 let url = format!(
@@ -454,6 +489,7 @@ pub fn run() {
                                         })
                                         .collect();
                                     eprintln!("[weather] OK: {} forecasts", forecasts.len());
+                                    *weather_cache_ref.lock().unwrap() = forecasts.clone();
                                     let _ = weather_handle.emit("weather-update", &forecasts);
                                 }
                                 Err(e) => eprintln!("[weather] JSON parse error (HTTP {}): {e}", status),
