@@ -3,6 +3,8 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useFocus } from "./hooks/useFocus";
 import { useWeather } from "./hooks/useWeather";
 import { useSystemMetrics } from "./hooks/useSystemMetrics";
+import { useServiceStatus } from "./hooks/useServiceStatus";
+import { useHealthStatus } from "./hooks/useHealthStatus";
 import Header from "./components/Header";
 import ClockCalendar from "./components/ClockCalendar";
 import WeatherForecast from "./components/WeatherForecast";
@@ -17,6 +19,8 @@ function App() {
   const focused = useFocus();
   const forecast = useWeather();
   const metrics = useSystemMetrics();
+  const services = useServiceStatus();
+  const health = useHealthStatus();
   const [compact, setCompact] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -81,9 +85,9 @@ function App() {
           <div className="separator" />
           <PcMetrics metrics={metrics} />
           <div className="separator" />
-          <ServiceStatus />
-          <div className="separator" />
-          <HealthCheck />
+          <ServiceStatus services={services} />
+          {health.length > 0 && <div className="separator" />}
+          <HealthCheck health={health} />
           <div className="footer">
             double-click header to compact · ⚙ to configure
           </div>

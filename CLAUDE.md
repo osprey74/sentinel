@@ -26,7 +26,9 @@ sentinel/
 │   └── main.tsx            # エントリポイント
 ├── src-tauri/              # Rust バックエンド
 │   ├── src/
-│   │   ├── lib.rs          # Tauri setup, トレイ, コマンド
+│   │   ├── lib.rs          # Tauri setup, トレイ, ポーリングタスク
+│   │   ├── config.rs       # TOML 設定ファイル読み込み・型定義
+│   │   ├── services.rs     # Statuspage API パーサー, ヘルスチェック
 │   │   └── main.rs         # エントリポイント
 │   ├── capabilities/       # 権限設定
 │   ├── Cargo.toml

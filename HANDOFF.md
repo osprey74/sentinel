@@ -1,161 +1,114 @@
 # HANDOFF.md — Sentinel
 
-**最終更新**: 2026-04-16
-**フェーズ**: Phase 1 MVP — コア機能実装完了、Phase 2 準備中
+**最終更新**: 2026-04-17
+**フェーズ**: Phase 2 完了 → Phase 3 UX改善 準備中
 
 ---
 
 ## 現在の状態
 
-### 完了済み
+### Phase 1: MVP（完了）
 
 - [x] DESIGN.md 作成（全仕様を網羅）
 - [x] Reactプロトタイプ作成（Claude.ai上で動作確認済み）
 - [x] Tauri v2 プロジェクトスキャフォールド
 - [x] CLAUDE.md 作成
 - [x] GitHub リポジトリセットアップ（description, topics 設定済み）
-- [x] `npm install` → `npm run tauri dev` で初回ビルド確認
-- [x] トレイアイコン用画像の生成・配置（src-tauri/icons/）
+- [x] 初回ビルド確認（`npm install` → `npm run tauri dev`）
+- [x] トレイアイコン生成・配置（src-tauri/icons/）
 - [x] capabilities/main.json 修正（tray:default → core:tray:default）
-- [x] ヘッダー ✕ 閉じるボタン実装（ホバー赤ハイライト、クリックでトレイ格納）
-- [x] トレイメニュー拡充（バージョン表示、Show、Settings、Restart、Quit）
-- [x] トレイ右クリック修正（左クリックのみウィンドウ表示）
-- [x] ClockCalendar コンポーネント実装（SVGアナログ時計 + 月間カレンダー）
-- [x] WeatherForecast コンポーネント実装（Open-Meteo API 連携）
-- [x] WeatherIcon コンポーネント（5種類の SVG アイコンスタイル: filled/line/neon/minimal/duotone）
-- [x] PcMetrics コンポーネント実装（CPU/MEM/DISK/NET、C:ドライブのみ表示）
-- [x] Rust バックエンド: sysinfo ポーリング（5秒間隔）+ イベント emit
-- [x] Rust バックエンド: Open-Meteo API 呼び出し（30分間隔）
-- [x] SettingsPanel: 天気アイコンスタイル切替（localStorage で永続化）
-- [x] フォーカス透過率の動作確認（Windows）
-- [x] 透明ウィンドウ角丸クリップ修正（clip-path）
+- [x] ヘッダー ✕ 閉じるボタン（ホバー赤ハイライト、クリックでトレイ格納）
+- [x] トレイメニュー（Sentinel v{version} / Show / Settings / Restart / Quit）
+- [x] トレイ左クリックのみウィンドウ表示（右クリック競合修正）
+- [x] ClockCalendar（SVGアナログ時計 + 月間カレンダー）
+- [x] WeatherForecast（Open-Meteo API 連携）
+- [x] WeatherIcon（5種類のSVGスタイル: filled/line/neon/minimal/duotone）
+- [x] PcMetrics（CPU/MEM/DISK/NET、C:ドライブのみ、色分け閾値）
+- [x] Rust: sysinfo ポーリング（5秒間隔）
+- [x] Rust: Open-Meteo ポーリング（30分間隔）
+- [x] SettingsPanel: 天気アイコンスタイル切替（localStorage 永続化）
+- [x] フォーカス透過率確認（Windows）
+- [x] 透明ウィンドウ角丸クリップ（clip-path）
 - [x] WebView2 ボーダー除去（shadow:false + theme:Dark）
 
-### 未完了（Phase 1 残タスク）
+### Phase 2: サービス監視（完了）
 
-- [ ] ServiceStatus コンポーネント実装（Phase 2 で本実装予定）
-- [ ] HealthCheck コンポーネント実装（Phase 2 で本実装予定）
-
----
-
-## 次のアクション（優先順）
-
-### 1. 初回ビルド確認
-
-```bash
-cd sentinel
-npm install
-npm run tauri dev
-```
-
-ビルドが通り、空のウィジェットウィンドウが表示されることを確認。
-トレイアイコンが表示され、閉じるとトレイに格納されることを確認。
-
-### 2. アナログ時計 + カレンダー（ClockCalendar）
-
-DESIGN.md「アナログ時計仕様」「カレンダー仕様」セクション参照。
-
-**時計仕様**:
-- SVGで描画、文字盤に数字なし
-- 5分単位: 大きな白い点（12個）
-- 1分単位: 小さな点（48個）
-- 時針: 白、太め（3px）、分針: 白（2px）、秒針: 赤（#E24B4A、0.8px）
-- 1秒ごとに更新
-
-**カレンダー仕様**:
-- 当月の月間カレンダー
-- 日曜 = 赤（#E24B4A）、土曜 = 青（#85B7EB）
-- 当日 = ティール背景ハイライト
-- JetBrains Mono 9px
-
-Reactプロトタイプ（sentinel-prototype.jsx）の AnalogClock / MiniCalendar コンポーネントをそのまま TypeScript に移植可能。
-
-### 3. PC メトリクス（PcMetrics + Rust バックエンド）
-
-**Rust 側**:
-```rust
-// lib.rs に追加: sysinfo でメトリクス取得、tokio::interval で定期 emit
-use sysinfo::System;
-use std::sync::Mutex;
-use tauri::async_runtime;
-
-// setup() 内で spawn
-let app_handle = app.handle().clone();
-async_runtime::spawn(async move {
-    let mut sys = System::new_all();
-    let mut interval = tokio::time::interval(
-        tokio::time::Duration::from_secs(5)
-    );
-    loop {
-        interval.tick().await;
-        sys.refresh_all();
-        let metrics = SystemMetrics {
-            cpu: sys.global_cpu_usage(),
-            mem: sys.used_memory() as f32 / sys.total_memory() as f32 * 100.0,
-            // ... disk, network
-        };
-        let _ = app_handle.emit("system-metrics", &metrics);
-    }
-});
-```
-
-**React 側**: `useSystemMetrics` hook は既に `listen("system-metrics")` を実装済み。
-
-### 4. 天気予報（WeatherForecast + Rust バックエンド）
-
-**Rust 側**: reqwest で Open-Meteo API を呼び出し。
-
-```
-GET https://api.open-meteo.com/v1/forecast
-  ?latitude=35.6762&longitude=139.6503
-  &daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max
-  &timezone=Asia/Tokyo&forecast_days=4
-```
-
-30分間隔でポーリング。レスポンスを `DayForecast[]` に変換して emit。
+- [x] TOML 設定ファイル（~/.config/sentinel/config.toml）読み込み + デフォルト生成
+- [x] Rust モジュール分割（config.rs / services.rs）
+- [x] Statuspage API 共通パーサー（GitHub/Fly.io/Bluesky/Cloudflare/Anthropic）
+- [x] ヘルスチェック（HTTP GET + レイテンシ計測 + タイムアウト）
+- [x] ServiceStatus コンポーネント（ステータスドット + ラベル + クリックで URL 遷移）
+- [x] HealthCheck コンポーネント（ステータスドット + レイテンシ表示）
+- [x] useServiceStatus / useHealthStatus hooks（App レベルでリフト済み）
+- [x] 設定ファイルからポーリング間隔・天気座標を読み込み
 
 ---
 
-## Phase 2 以降のタスク（参考）
+## 次のアクション（Phase 3: UX改善）
 
-### Phase 2: サービス監視
-- Statuspage API パーサー（GitHub/Fly.io/Bluesky/Cloudflare/Anthropic 共通）
-- AWS Health API パーサー（形式が異なる）
-- ヘルスチェック（reqwest で HTTP GET → レスポンスコード + レイテンシ）
-- TOML 設定ファイル読み込み + notify ホットリロード
-- ServiceStatus / HealthCheck コンポーネント実装
-- SettingsPanel 実装（サービス追加・削除 UI）
+### 1. コンパクトモード本実装
 
-### Phase 3: UX 改善
-- CompactMode 本実装（ステータスドット集約表示）
-- 右クリックコンテキストメニュー
-- ウィンドウ位置記憶（config.toml に保存）
-- 透過率の実機検証（macOS Sonoma グリッチ対応）
+現在の `CompactMode` コンポーネントはスタブ。DESIGN.md のコンパクトモード仕様に沿って実装:
+- ステータスドットのみの1行表示
+- ダブルクリックでフル表示に戻る
 
-### Phase 4: 通知・拡張
-- ステータス変化時のデスクトップ通知
-- 履歴グラフ（ミニスパークライン）
-- プラグインシステム
-- ライトテーマ
+### 2. ウィンドウ位置記憶
+
+- ウィジェットの位置を `config.toml` の `[general].position` に保存
+- 起動時に復元
+
+### 3. 右クリックコンテキストメニュー
+
+- ウィジェット本体の右クリックメニュー（設定/終了）
+
+---
+
+## アーキテクチャ
+
+### Rust モジュール構成
+
+| ファイル | 役割 |
+|---------|------|
+| `lib.rs` | Tauri setup, トレイ, ポーリングタスク spawn |
+| `config.rs` | TOML 設定ファイルの読み込み・デフォルト生成・型定義 |
+| `services.rs` | Statuspage API パーサー, ヘルスチェック実行 |
+
+### イベントフロー
+
+```
+Rust (tokio::spawn)          →  Tauri Event  →  React (listen)
+─────────────────────────────────────────────────────────────
+sysinfo polling (5s)         →  system-metrics  →  useSystemMetrics
+Open-Meteo polling (30min)   →  weather-update  →  useWeather
+Statuspage polling (60s)     →  service-status  →  useServiceStatus
+Health check polling (30s)   →  health-status   →  useHealthStatus
+```
+
+### 設定ファイル
+
+パス: `~/.config/sentinel/config.toml`（初回起動時にデフォルト生成）
+
+主要セクション:
+- `[weather]` — 座標、地名、ポーリング間隔
+- `[metrics]` — ポーリング間隔
+- `[services]` — ポーリング間隔 + `[[services.targets]]` でサービス定義
+- `[health]` — タイムアウト、ポーリング間隔 + `[[health.targets]]` でエンドポイント定義
 
 ---
 
 ## 既知の注意点
 
-1. **macOS Sonoma 透過グリッチ**: transparent ウィンドウのフォーカス切替で描画が乱れる
-   報告あり (tauri-apps/tauri#8255)。CSS opacity 方式で回避予定だが要実機検証。
+1. **macOS Sonoma 透過グリッチ**: transparent ウィンドウのフォーカス切替で描画乱れ
+   (tauri-apps/tauri#8255)。CSS opacity 方式で回避済み。要実機検証。
 
-2. **Unicode 絵文字 VS-16**: 天気アイコン ☀☁⛅⛈❄ は `\uFE0F` を付与して
-   絵文字表示を強制。本番は SVG アイコン（Lucide 等）への置き換えを推奨。
+2. **天気アイコン**: Unicode 絵文字の描画不統一問題を SVG アイコンに置き換えて解決済み。
+   5スタイル（filled/line/neon/minimal/duotone）を設定画面から切替可能。
 
-3. **esbuild macOS 問題**: macOS 15 + bun 環境で esbuild がSIGKILLされる既知問題。
-   `~/` パスのネイティブバイナリが VS Code/Claude Code の子プロセスとして
-   実行されると発生。fix: `/opt/homebrew/bin/` にコピー + シェルラッパースクリプト。
+3. **Statuspage API 共通パーサー**: GitHub, Fly.io, Bluesky, Cloudflare, Anthropic は
+   Atlassian Statuspage ベース。`json_path` で任意のフィールドを指定可能。
 
-4. **Statuspage API 共通パーサー**: GitHub, Fly.io, Bluesky, Cloudflare, Anthropic は
-   すべて Atlassian Statuspage ベース。`status.indicator` フィールドで
-   `none` → ok, `minor` → warn, `major`/`critical` → crit にマッピング。
-   AWS のみ異なるフォーマットなので個別パーサーが必要。
+4. **config.toml ホットリロード**: 未実装。`notify` クレートは依存に含まれているが、
+   現在は起動時のみ読み込み。Phase 4 で対応予定。
 
 ---
 
@@ -166,4 +119,5 @@ GET https://api.open-meteo.com/v1/forecast
 | `DESIGN.md` | UI仕様、アーキテクチャ、API仕様、設定スキーマ、フェーズ計画 |
 | `CLAUDE.md` | コーディング規約、制約、イベント一覧 |
 | `src/types/index.ts` | 全型定義 + WMO コードマッピング + ステータスカラー |
-| `sentinel-prototype.jsx` | 動作するReactプロトタイプ（Claude.ai Artifacts） |
+| `src-tauri/src/config.rs` | 設定ファイル型定義 + デフォルト値 |
+| `src-tauri/src/services.rs` | Statuspage API パーサー + ヘルスチェック |

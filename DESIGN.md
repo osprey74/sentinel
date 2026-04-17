@@ -586,7 +586,7 @@ indicator 値マッピングは Fly.io と同一。
 
 ## フェーズ計画
 
-### Phase 1: MVP（1〜2週間）
+### Phase 1: MVP（完了）
 - [x] DESIGN.md 作成
 - [x] Tauri v2 プロジェクト初期化
 - [x] フレームレスウィンドウ + ドラッグ移動
@@ -594,30 +594,34 @@ indicator 値マッピングは Fly.io と同一。
 - [x] システムトレイアイコン + メニュー（バージョン表示・再起動・終了）
 - [x] 閉じるボタン → トレイ格納
 - [x] フォーカス連動透過率
-- [ ] アナログ時計 + カレンダー（ClockCalendar）
-- [ ] PC メトリクス表示（sysinfo）
-- [ ] 天気予報セクション（Open-Meteo API）
+- [x] アナログ時計 + カレンダー（ClockCalendar）
+- [x] PC メトリクス表示（sysinfo）
+- [x] 天気予報セクション（Open-Meteo API）
+- [x] SVG天気アイコン 5スタイル（filled/line/neon/minimal/duotone）
+- [x] 設定パネル（天気アイコンスタイル切替）
 
-### Phase 2: サービス監視（1週間）
-- [ ] 外部サービスステータス取得（Fly.io 含む）
-- [ ] ヘルスチェック機能
-- [ ] TOML 設定ファイル読み込み
-- [ ] ステータスカラー表示
+### Phase 2: サービス監視（完了）
+- [x] TOML 設定ファイル読み込み + デフォルト生成（~/.config/sentinel/config.toml）
+- [x] 外部サービスステータス取得（GitHub/Fly.io/Bluesky/Cloudflare/Anthropic）
+- [x] Statuspage API 共通パーサー（json_path 対応）
+- [x] ヘルスチェック機能（HTTP GET + レイテンシ計測）
+- [x] ステータスカラー表示（ok/warn/crit/unknown）
+- [x] サービス行クリックでステータスページを開く
 
-### Phase 3: UX改善（1週間）
-- [ ] コンパクトモード
-- [ ] 右クリックメニュー
-- [ ] ウィジェット位置記憶
+### Phase 3: UX改善（未着手）
+- [ ] コンパクトモード本実装
+- [ ] 右クリックコンテキストメニュー
+- [ ] ウィンドウ位置記憶（config.toml に保存）
 
 ### Phase 4: 通知・拡張（将来）
 - [ ] ステータス変化時のデスクトップ通知
 - [ ] 履歴グラフ（ミニスパークライン）
 - [ ] プラグインシステム（カスタム監視対象）
 - [ ] ライトテーマ対応
+- [ ] config.toml ホットリロード（notify クレート）
 
 ## HANDOFF 用メモ
 
 - プロジェクト名: `sentinel`
-- リポジトリ: `osprey74/sentinel`（予定）
+- リポジトリ: `osprey74/sentinel`
 - CLAUDE.md / HANDOFF.md は Phase 1 着手時に作成
-- Pencil.dev でのデザイン清書は本 DESIGN.md + React プロトタイプを参照
