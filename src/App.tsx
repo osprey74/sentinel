@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import { useFocus } from "./hooks/useFocus";
 import { useWeather } from "./hooks/useWeather";
@@ -29,6 +29,25 @@ function App() {
     () => (localStorage.getItem("sentinel-icon-style") as IconStyle) || "filled"
   );
   const [locationName, setLocationName] = useState("Loading...");
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Auto-resize window to fit content
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const contentHeight = Math.ceil(entry.borderBoxSize[0].blockSize);
+        if (contentHeight > 0) {
+          const maxHeight = window.screen.availHeight - 40;
+          const height = Math.min(contentHeight, maxHeight);
+          getCurrentWindow().setSize(new LogicalSize(320, height));
+        }
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   // Load location name from config on mount
   useEffect(() => {
@@ -67,6 +86,7 @@ function App() {
 
   return (
     <div
+      ref={rootRef}
       className="widget-root"
       style={{
         opacity: focused ? 1 : 0.35,

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { IconStyle } from "./WeatherIcon";
 import WeatherIcon from "./WeatherIcon";
+import { ServiceEditor, HealthEditor } from "./TargetEditor";
 
 const ICON_STYLES: { value: IconStyle; label: string }[] = [
   { value: "filled", label: "Filled" },
@@ -19,6 +20,20 @@ interface GeoResult {
   admin1: string | null;
 }
 
+interface ServiceTarget {
+  name: string;
+  url: string;
+  jsonPath?: string;
+  statusUrl?: string;
+}
+
+interface HealthTarget {
+  name: string;
+  url: string;
+  method: string;
+  expectedStatus: number;
+}
+
 interface SettingsPanelProps {
   onClose: () => void;
   iconStyle: IconStyle;
@@ -34,6 +49,15 @@ export default function SettingsPanel({
   const [results, setResults] = useState<GeoResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+
+  // Service/health targets loaded from config
+  const [serviceTargets, setServiceTargets] = useState<ServiceTarget[] | null>(null);
+  const [healthTargets, setHealthTargets] = useState<HealthTarget[] | null>(null);
+
+  useEffect(() => {
+    invoke<ServiceTarget[]>("get_service_targets").then(setServiceTargets);
+    invoke<HealthTarget[]>("get_health_targets").then(setHealthTargets);
+  }, []);
 
   const handleSearch = useCallback(async () => {
     if (query.trim().length < 2) return;
@@ -64,152 +88,194 @@ export default function SettingsPanel({
     setResults([]);
   }, [onLocationChange]);
 
-  // Handle Enter key
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter") handleSearch();
   }, [handleSearch]);
 
-  return (
-    <div className="section" style={{ paddingBottom: 14 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.6)" }}>
-          Settings
-        </span>
-        <span
-          onClick={onClose}
-          style={{ fontSize: 11, color: "var(--color-ok)", cursor: "pointer", fontFamily: "var(--font-mono)" }}
-        >
-          done
-        </span>
-      </div>
+  const handleSaveServices = useCallback(async (targets: ServiceTarget[]) => {
+    try {
+      await invoke("set_service_targets", { targets });
+      setServiceTargets(targets);
+    } catch (e) {
+      console.error("Failed to save services:", e);
+    }
+  }, []);
 
-      {/* Weather Location */}
-      <div style={{ marginBottom: 14 }}>
-        <div style={{
-          fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.28)",
-          textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6,
-        }}>
-          Weather Location
-        </div>
-        {!showSearch ? (
-          <div
-            onClick={() => setShowSearch(true)}
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "6px 10px", borderRadius: 8, cursor: "pointer",
-              background: "var(--bg-card)", border: "1px solid var(--border-faint)",
-            }}
+  const handleSaveHealth = useCallback(async (targets: HealthTarget[]) => {
+    try {
+      await invoke("set_health_targets", { targets });
+      setHealthTargets(targets);
+    } catch (e) {
+      console.error("Failed to save health targets:", e);
+    }
+  }, []);
+
+  return (
+    <div>
+      <div className="section" style={{ paddingBottom: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.6)" }}>
+            Settings
+          </span>
+          <span
+            onClick={onClose}
+            style={{ fontSize: 11, color: "var(--color-ok)", cursor: "pointer", fontFamily: "var(--font-mono)" }}
           >
-            <span style={{ fontSize: 11, color: "var(--text-primary)" }}>{locationName}</span>
-            <span style={{ fontSize: 10, color: "var(--text-tertiary)", fontFamily: "var(--font-mono)" }}>change</span>
-          </div>
-        ) : (
-          <div>
-            <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="City name..."
-                autoFocus
-                style={{
-                  flex: 1, padding: "5px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.12)",
-                  background: "rgba(255,255,255,0.06)", color: "var(--text-primary)",
-                  fontSize: 11, fontFamily: "var(--font-mono)", outline: "none",
-                }}
-              />
-              <button
-                onClick={handleSearch}
-                disabled={searching || query.trim().length < 2}
-                style={{
-                  padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer",
-                  background: "var(--color-ok)", color: "#fff", fontSize: 10,
-                  fontFamily: "var(--font-mono)", fontWeight: 600,
-                  opacity: searching || query.trim().length < 2 ? 0.4 : 1,
-                }}
-              >
-                {searching ? "..." : "Search"}
-              </button>
-            </div>
-            {results.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                {results.map((geo, i) => (
-                  <div
-                    key={i}
-                    onClick={() => handleSelect(geo)}
-                    style={{
-                      padding: "5px 8px", borderRadius: 6, cursor: "pointer",
-                      background: "var(--bg-card)", border: "1px solid var(--border-faint)",
-                      transition: "background 0.1s",
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "var(--bg-card)")}
-                  >
-                    <div style={{ fontSize: 11, color: "var(--text-primary)" }}>
-                      {geo.name}
-                    </div>
-                    <div style={{ fontSize: 9, color: "var(--text-tertiary)", fontFamily: "var(--font-mono)" }}>
-                      {[geo.admin1, geo.country].filter(Boolean).join(", ")}
-                      {" "}({geo.latitude.toFixed(2)}, {geo.longitude.toFixed(2)})
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            done
+          </span>
+        </div>
+
+        {/* Weather Location */}
+        <div style={{ marginBottom: 14 }}>
+          <SectionLabel>Weather Location</SectionLabel>
+          {!showSearch ? (
             <div
-              onClick={() => { setShowSearch(false); setQuery(""); setResults([]); }}
+              onClick={() => setShowSearch(true)}
               style={{
-                fontSize: 10, color: "var(--text-tertiary)", cursor: "pointer",
-                textAlign: "center", marginTop: 4, fontFamily: "var(--font-mono)",
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "6px 10px", borderRadius: 8, cursor: "pointer",
+                background: "var(--bg-card)", border: "1px solid var(--border-faint)",
               }}
             >
-              cancel
+              <span style={{ fontSize: 11, color: "var(--text-primary)" }}>{locationName}</span>
+              <span style={{ fontSize: 10, color: "var(--text-tertiary)", fontFamily: "var(--font-mono)" }}>change</span>
             </div>
-          </div>
-        )}
-      </div>
-
-      {/* Weather Icon Style */}
-      <div style={{ marginBottom: 6 }}>
-        <div style={{
-          fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.28)",
-          textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8,
-        }}>
-          Weather Icon Style
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {ICON_STYLES.map((s) => {
-            const selected = iconStyle === s.value;
-            return (
+          ) : (
+            <div>
+              <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="City name..."
+                  autoFocus
+                  style={{
+                    flex: 1, padding: "5px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.12)",
+                    background: "rgba(255,255,255,0.06)", color: "var(--text-primary)",
+                    fontSize: 11, fontFamily: "var(--font-mono)", outline: "none",
+                  }}
+                />
+                <button
+                  onClick={handleSearch}
+                  disabled={searching || query.trim().length < 2}
+                  style={{
+                    padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer",
+                    background: "var(--color-ok)", color: "#fff", fontSize: 10,
+                    fontFamily: "var(--font-mono)", fontWeight: 600,
+                    opacity: searching || query.trim().length < 2 ? 0.4 : 1,
+                  }}
+                >
+                  {searching ? "..." : "Search"}
+                </button>
+              </div>
+              {results.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  {results.map((geo, i) => (
+                    <div
+                      key={i}
+                      onClick={() => handleSelect(geo)}
+                      style={{
+                        padding: "5px 8px", borderRadius: 6, cursor: "pointer",
+                        background: "var(--bg-card)", border: "1px solid var(--border-faint)",
+                        transition: "background 0.1s",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "var(--bg-card)")}
+                    >
+                      <div style={{ fontSize: 11, color: "var(--text-primary)" }}>{geo.name}</div>
+                      <div style={{ fontSize: 9, color: "var(--text-tertiary)", fontFamily: "var(--font-mono)" }}>
+                        {[geo.admin1, geo.country].filter(Boolean).join(", ")}
+                        {" "}({geo.latitude.toFixed(2)}, {geo.longitude.toFixed(2)})
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div
-                key={s.value}
-                onClick={() => onIconStyleChange(s.value)}
+                onClick={() => { setShowSearch(false); setQuery(""); setResults([]); }}
                 style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "6px 10px", borderRadius: 8, cursor: "pointer",
-                  background: selected ? "rgba(29, 158, 117, 0.15)" : "var(--bg-card)",
-                  border: selected ? "1px solid rgba(29, 158, 117, 0.4)" : "1px solid var(--border-faint)",
-                  transition: "all 0.15s",
+                  fontSize: 10, color: "var(--text-tertiary)", cursor: "pointer",
+                  textAlign: "center", marginTop: 4, fontFamily: "var(--font-mono)",
                 }}
               >
-                <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
-                  <WeatherIcon code={0} size={20} variant={s.value} />
-                  <WeatherIcon code={3} size={20} variant={s.value} />
-                  <WeatherIcon code={63} size={20} variant={s.value} />
-                </div>
-                <span style={{
-                  fontSize: 11, fontFamily: "var(--font-mono)",
-                  color: selected ? "var(--color-ok)" : "var(--text-secondary)",
-                  fontWeight: selected ? 600 : 400,
-                }}>
-                  {s.label}
-                </span>
+                cancel
               </div>
-            );
-          })}
+            </div>
+          )}
+        </div>
+
+        {/* Weather Icon Style */}
+        <div style={{ marginBottom: 14 }}>
+          <SectionLabel>Weather Icon Style</SectionLabel>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {ICON_STYLES.map((s) => {
+              const selected = iconStyle === s.value;
+              return (
+                <div
+                  key={s.value}
+                  onClick={() => onIconStyleChange(s.value)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10,
+                    padding: "6px 10px", borderRadius: 8, cursor: "pointer",
+                    background: selected ? "rgba(29, 158, 117, 0.15)" : "var(--bg-card)",
+                    border: selected ? "1px solid rgba(29, 158, 117, 0.4)" : "1px solid var(--border-faint)",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+                    <WeatherIcon code={0} size={20} variant={s.value} />
+                    <WeatherIcon code={3} size={20} variant={s.value} />
+                    <WeatherIcon code={63} size={20} variant={s.value} />
+                  </div>
+                  <span style={{
+                    fontSize: 11, fontFamily: "var(--font-mono)",
+                    color: selected ? "var(--color-ok)" : "var(--text-secondary)",
+                    fontWeight: selected ? 600 : 400,
+                  }}>
+                    {s.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Services Editor */}
+        <div style={{ marginBottom: 14 }}>
+          <SectionLabel>Services</SectionLabel>
+          {serviceTargets ? (
+            <ServiceEditor targets={serviceTargets} onSave={handleSaveServices} />
+          ) : (
+            <div style={{ color: "var(--text-tertiary)", fontSize: 11, fontFamily: "var(--font-mono)" }}>
+              Loading...
+            </div>
+          )}
+        </div>
+
+        {/* Health Targets Editor */}
+        <div>
+          <SectionLabel>Self-Hosted</SectionLabel>
+          {healthTargets ? (
+            <HealthEditor targets={healthTargets} onSave={handleSaveHealth} />
+          ) : (
+            <div style={{ color: "var(--text-tertiary)", fontSize: 11, fontFamily: "var(--font-mono)" }}>
+              Loading...
+            </div>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.28)",
+      textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6,
+    }}>
+      {children}
     </div>
   );
 }

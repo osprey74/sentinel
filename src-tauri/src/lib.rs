@@ -148,6 +148,93 @@ fn get_weather_location() -> GeoResult {
     }
 }
 
+// ── Config Editor Types ──
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ServiceTargetJs {
+    name: String,
+    url: String,
+    json_path: Option<String>,
+    status_url: Option<String>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct HealthTargetJs {
+    name: String,
+    url: String,
+    method: String,
+    expected_status: u16,
+}
+
+/// Get current service targets from config
+#[tauri::command]
+fn get_service_targets() -> Vec<ServiceTargetJs> {
+    let cfg = config::load_config();
+    cfg.services.targets.iter().map(|t| ServiceTargetJs {
+        name: t.name.clone(),
+        url: t.url.clone(),
+        json_path: t.json_path.clone(),
+        status_url: t.status_url.clone(),
+    }).collect()
+}
+
+/// Save service targets to config and trigger re-poll
+#[tauri::command]
+async fn set_service_targets(app: tauri::AppHandle, targets: Vec<ServiceTargetJs>) -> Result<(), String> {
+    let path = config::config_path();
+    let mut cfg = config::load_config();
+    cfg.services.targets = targets.iter().map(|t| config::ServiceTargetConfig {
+        name: t.name.clone(),
+        url: t.url.clone(),
+        r#type: "status_page".into(),
+        json_path: t.json_path.clone(),
+        status_url: t.status_url.clone(),
+    }).collect();
+    let content = toml::to_string_pretty(&cfg).map_err(|e| e.to_string())?;
+    std::fs::write(&path, content).map_err(|e| e.to_string())?;
+
+    // Immediate re-poll
+    let client = reqwest::Client::new();
+    let results = services::poll_services(&client, &cfg).await;
+    let _ = app.emit("service-status", &results);
+    Ok(())
+}
+
+/// Get current health targets from config
+#[tauri::command]
+fn get_health_targets() -> Vec<HealthTargetJs> {
+    let cfg = config::load_config();
+    cfg.health.targets.iter().map(|t| HealthTargetJs {
+        name: t.name.clone(),
+        url: t.url.clone(),
+        method: t.method.clone(),
+        expected_status: t.expected_status,
+    }).collect()
+}
+
+/// Save health targets to config and trigger re-poll
+#[tauri::command]
+async fn set_health_targets(app: tauri::AppHandle, targets: Vec<HealthTargetJs>) -> Result<(), String> {
+    let path = config::config_path();
+    let mut cfg = config::load_config();
+    cfg.health.targets = targets.iter().map(|t| config::HealthTargetConfig {
+        name: t.name.clone(),
+        url: t.url.clone(),
+        method: t.method.clone(),
+        expected_status: t.expected_status,
+    }).collect();
+    let content = toml::to_string_pretty(&cfg).map_err(|e| e.to_string())?;
+    std::fs::write(&path, content).map_err(|e| e.to_string())?;
+
+    // Immediate re-poll
+    let client = reqwest::Client::new();
+    let results = services::poll_health(&client, &cfg).await;
+    let _ = app.emit("health-status", &results);
+    Ok(())
+}
+
 /// Simple URL encoding for the search query
 fn urlencoding(s: &str) -> String {
     s.bytes()
@@ -171,6 +258,10 @@ pub fn run() {
             search_location,
             set_weather_location,
             get_weather_location,
+            get_service_targets,
+            set_service_targets,
+            get_health_targets,
+            set_health_targets,
         ])
         .setup(|app| {
             // ── Load Config ──
