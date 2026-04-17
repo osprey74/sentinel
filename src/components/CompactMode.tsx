@@ -8,10 +8,10 @@ interface CompactModeProps {
   services: ServiceTarget[];
   health: HealthTarget[];
   focused: boolean;
-  onDoubleClick: () => void;
+  onExpand: () => void;
 }
 
-export default function CompactMode({ elapsed, services, health, focused, onDoubleClick }: CompactModeProps) {
+export default function CompactMode({ elapsed, services, health, focused, onExpand }: CompactModeProps) {
   const rootRef = useRef<HTMLDivElement>(null);
 
   // Auto-resize window for compact mode
@@ -47,8 +47,7 @@ export default function CompactMode({ elapsed, services, health, focused, onDoub
   return (
     <div
       ref={rootRef}
-      data-tauri-drag-region
-      onDoubleClick={onDoubleClick}
+      onClick={onExpand}
       style={{
         padding: "8px 14px",
         background: "rgba(15,15,20,0.88)",
@@ -56,7 +55,7 @@ export default function CompactMode({ elapsed, services, health, focused, onDoub
         borderRadius: 20,
         border: "1px solid rgba(255,255,255,0.08)",
         boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-        cursor: "default",
+        cursor: "pointer",
         display: "flex",
         alignItems: "center",
         gap: 8,
@@ -92,12 +91,12 @@ export default function CompactMode({ elapsed, services, health, focused, onDoub
         </div>
       )}
 
-      {/* Elapsed */}
+      {/* Elapsed + expand hint */}
       <span style={{
         fontSize: 9, color: "rgba(255,255,255,0.2)", fontFamily: "var(--font-mono)",
         marginLeft: "auto", whiteSpace: "nowrap",
       }}>
-        {elapsed}s
+        {elapsed}s ↗
       </span>
     </div>
   );

@@ -13,7 +13,6 @@ import PcMetrics from "./components/PcMetrics";
 import ServiceStatus from "./components/ServiceStatus";
 import HealthCheck from "./components/HealthCheck";
 import SettingsPanel from "./components/SettingsPanel";
-import CompactMode from "./components/CompactMode";
 import type { IconStyle } from "./components/WeatherIcon";
 
 function App() {
@@ -22,7 +21,6 @@ function App() {
   const metrics = useSystemMetrics();
   const services = useServiceStatus();
   const health = useHealthStatus();
-  const [compact, setCompact] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [iconStyle, setIconStyle] = useState<IconStyle>(
@@ -61,7 +59,6 @@ function App() {
     localStorage.setItem("sentinel-icon-style", style);
   }, []);
 
-  const toggleCompact = useCallback(() => setCompact((c) => !c), []);
   const toggleSettings = useCallback(() => setShowSettings((s) => !s), []);
 
   // Listen for tray "open-settings" event
@@ -95,18 +92,6 @@ function App() {
     return () => clearInterval(id);
   }, []);
 
-  if (compact) {
-    return (
-      <CompactMode
-        elapsed={elapsed}
-        services={services}
-        health={health}
-        focused={focused}
-        onDoubleClick={toggleCompact}
-      />
-    );
-  }
-
   return (
     <div
       ref={rootRef}
@@ -119,7 +104,6 @@ function App() {
       <Header
         elapsed={elapsed}
         showSettings={showSettings}
-        onToggleCompact={toggleCompact}
         onToggleSettings={toggleSettings}
       />
 
@@ -142,9 +126,6 @@ function App() {
           <ServiceStatus services={services} />
           {health.length > 0 && <div className="separator" />}
           <HealthCheck health={health} />
-          <div className="footer">
-            double-click header to compact · ⚙ to configure
-          </div>
         </>
       )}
     </div>

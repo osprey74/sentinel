@@ -3,20 +3,17 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 interface HeaderProps {
   elapsed: number;
   showSettings: boolean;
-  onToggleCompact: () => void;
   onToggleSettings: () => void;
 }
 
 export default function Header({
   elapsed,
   showSettings,
-  onToggleCompact,
   onToggleSettings,
 }: HeaderProps) {
   return (
     <div
       data-tauri-drag-region
-      onDoubleClick={onToggleCompact}
       style={{
         padding: "10px 14px",
         display: "flex",
