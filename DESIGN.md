@@ -608,20 +608,26 @@ indicator 値マッピングは Fly.io と同一。
 - [x] ステータスカラー表示（ok/warn/crit/unknown）
 - [x] サービス行クリックでステータスページを開く
 
-### Phase 3: UX改善（進行中）
-- [ ] コンパクトモード（Windows透明ウィンドウでクリック/ドラッグ競合のため保留）
+### Phase 3: UX改善（完了）
 - [x] ウィンドウ位置記憶（config.toml に保存、起動時に復元）
 - [x] ウィンドウ高さ自動伸縮（ResizeObserver）
 - [x] サービス/ヘルスチェック設定 UI（追加・削除・ドラッグ並べ替え）
 - [x] 天気予報地点検索（Open-Meteo Geocoding API）
-- [ ] 右クリックコンテキストメニュー
+- [x] 右クリックコンテキストメニュー（Settings / Hide to Tray / Quit）
+- [x] 天気予報に降水確率表示（50%以上は青色太字）
+- [x] DISK ドライブ切替（クリックで全ドライブをトグル、ドライブレター昇順）
 
-### Phase 4: 通知・拡張（進行中）
+### Phase 4: 通知・拡張（完了）
 - [x] ステータス変化時のデスクトップ通知（tauri-plugin-notification）
 - [x] config.toml ホットリロード（notify クレートでファイル監視）
 - [x] 履歴グラフ（CPU/MEM ミニスパークライン、直近30サンプル）
-- [ ] プラグインシステム（カスタム監視対象）
-- [ ] ライトテーマ対応
+- [x] ライトテーマ / ダークテーマ切替（設定画面から、localStorage 永続化）
+- [x] PC起動時の自動起動オプション（tauri-plugin-autostart）
+- [x] CI/CD（GitHub Actions: Windows x86_64 + macOS universal、タグプッシュでドラフトリリース）
+
+### 保留・見送り
+- コンパクトモード（Windows 透明ウィンドウでクリック/ドラッグイベント競合のため保留）
+- プラグインシステム（設定 UI で監視対象の追加・編集が十分なため見送り）
 
 ## HANDOFF 用メモ
 
