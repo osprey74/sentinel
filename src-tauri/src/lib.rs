@@ -235,6 +235,12 @@ async fn set_health_targets(app: tauri::AppHandle, targets: Vec<HealthTargetJs>)
     Ok(())
 }
 
+/// Quit the application
+#[tauri::command]
+fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
 /// Save window position to config
 #[tauri::command]
 fn save_window_position(x: i32, y: i32) -> Result<(), String> {
@@ -274,6 +280,7 @@ pub fn run() {
             get_health_targets,
             set_health_targets,
             save_window_position,
+            quit_app,
         ])
         .setup(|app| {
             // ── Load Config ──

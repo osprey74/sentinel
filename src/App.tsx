@@ -13,6 +13,7 @@ import PcMetrics from "./components/PcMetrics";
 import ServiceStatus from "./components/ServiceStatus";
 import HealthCheck from "./components/HealthCheck";
 import SettingsPanel from "./components/SettingsPanel";
+import ContextMenu from "./components/ContextMenu";
 import type { IconStyle } from "./components/WeatherIcon";
 
 function App() {
@@ -27,6 +28,7 @@ function App() {
     () => (localStorage.getItem("sentinel-icon-style") as IconStyle) || "filled"
   );
   const [locationName, setLocationName] = useState("Loading...");
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   // Auto-resize window to fit content
@@ -96,6 +98,10 @@ function App() {
     <div
       ref={rootRef}
       className="widget-root"
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setContextMenu({ x: e.clientX, y: e.clientY });
+      }}
       style={{
         opacity: focused ? 1 : 0.35,
         transition: "opacity 0.3s ease",
@@ -127,6 +133,15 @@ function App() {
           {health.length > 0 && <div className="separator" />}
           <HealthCheck health={health} />
         </>
+      )}
+
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          onOpenSettings={() => setShowSettings(true)}
+        />
       )}
     </div>
   );
