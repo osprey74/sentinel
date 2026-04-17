@@ -1,4 +1,5 @@
 /** SVG weather icons with multiple style variants */
+import React from "react";
 
 export type IconStyle = "filled" | "line" | "neon" | "minimal" | "duotone";
 
@@ -28,7 +29,7 @@ function getCategory(code: number): Category {
   return "cloudy";
 }
 
-type IconSet = Record<Category, (s: number) => JSX.Element>;
+type IconSet = Record<Category, (s: number) => React.JSX.Element>;
 
 // Helper: sun rays
 const rays = (cx: number, cy: number, inner: number, outer: number, count: number, stroke: string, sw: number) =>

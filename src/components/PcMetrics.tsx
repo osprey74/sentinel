@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { SystemMetrics, DiskInfo } from "../types";
+import type { SystemMetrics } from "../types";
 import Sparkline from "./Sparkline";
 
 const HISTORY_SIZE = 30; // ~2.5 minutes at 5s intervals
