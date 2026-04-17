@@ -14,6 +14,7 @@ import ServiceStatus from "./components/ServiceStatus";
 import HealthCheck from "./components/HealthCheck";
 import SettingsPanel from "./components/SettingsPanel";
 import ContextMenu from "./components/ContextMenu";
+import MemoSection from "./components/MemoSection";
 import type { IconStyle } from "./components/WeatherIcon";
 
 function App() {
@@ -157,6 +158,8 @@ function App() {
           <ServiceStatus services={services} />
           {health.length > 0 && <div className="separator" />}
           <HealthCheck health={health} />
+          <div className="separator" />
+          <MemoSection />
         </>
       )}
 
