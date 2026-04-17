@@ -2,6 +2,7 @@ mod config;
 mod services;
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
@@ -269,6 +270,37 @@ fn save_window_position(x: i32, y: i32) -> Result<(), String> {
     Ok(())
 }
 
+/// Send desktop notification on status change
+fn send_notification(app: &tauri::AppHandle, name: &str, old: &str, new: &str) {
+    use tauri_plugin_notification::NotificationExt;
+    let (title, body) = match new {
+        "crit" => (
+            format!("⚠ {} is DOWN", name),
+            format!("{} → {}", status_label(old), status_label(new)),
+        ),
+        "warn" => (
+            format!("⚡ {} degraded", name),
+            format!("{} → {}", status_label(old), status_label(new)),
+        ),
+        "ok" => (
+            format!("✓ {} recovered", name),
+            format!("{} → operational", status_label(old)),
+        ),
+        _ => return,
+    };
+    eprintln!("[notify] {}: {} → {}", name, old, new);
+    let _ = app.notification().builder().title(&title).body(&body).show();
+}
+
+fn status_label(s: &str) -> &str {
+    match s {
+        "ok" => "operational",
+        "warn" => "degraded",
+        "crit" => "down",
+        _ => "unknown",
+    }
+}
+
 /// Simple URL encoding for the search query
 fn urlencoding(s: &str) -> String {
     s.bytes()
@@ -285,14 +317,20 @@ fn urlencoding(s: &str) -> String {
 
 struct WeatherCache(Arc<Mutex<Vec<DayForecast>>>);
 
+/// Previous status map for change detection: name -> status
+type StatusMap = Arc<Mutex<HashMap<String, String>>>;
+
 // ── App Entry ──
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let weather_cache = Arc::new(Mutex::new(Vec::<DayForecast>::new()));
+    let svc_status_map: StatusMap = Arc::new(Mutex::new(HashMap::new()));
+    let health_status_map: StatusMap = Arc::new(Mutex::new(HashMap::new()));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(WeatherCache(weather_cache.clone()))
         .invoke_handler(tauri::generate_handler![
             get_metrics,
@@ -506,12 +544,24 @@ pub fn run() {
             // ── Service Status Polling ──
             let svc_cfg = cfg.clone();
             let svc_handle = app.handle().clone();
+            let svc_prev = svc_status_map.clone();
             tauri::async_runtime::spawn(async move {
                 let client = reqwest::Client::new();
                 let interval_secs = svc_cfg.services.poll_interval_seconds;
 
                 loop {
                     let results = services::poll_services(&client, &svc_cfg).await;
+                    // Check for status changes and notify
+                    {
+                        let mut prev = svc_prev.lock().unwrap();
+                        for r in &results {
+                            let old = prev.get(&r.name).map(|s| s.as_str()).unwrap_or("unknown");
+                            if old != r.status && old != "unknown" {
+                                send_notification(&svc_handle, &r.name, old, r.status);
+                            }
+                            prev.insert(r.name.clone(), r.status.to_string());
+                        }
+                    }
                     let _ = svc_handle.emit("service-status", &results);
                     tokio::time::sleep(tokio::time::Duration::from_secs(interval_secs)).await;
                 }
@@ -521,17 +571,52 @@ pub fn run() {
             if !cfg.health.targets.is_empty() {
                 let health_cfg = cfg.clone();
                 let health_handle = app.handle().clone();
+                let health_prev = health_status_map.clone();
                 tauri::async_runtime::spawn(async move {
                     let client = reqwest::Client::new();
                     let interval_secs = health_cfg.health.poll_interval_seconds;
 
                     loop {
                         let results = services::poll_health(&client, &health_cfg).await;
+                        {
+                            let mut prev = health_prev.lock().unwrap();
+                            for r in &results {
+                                let old = prev.get(&r.name).map(|s| s.as_str()).unwrap_or("unknown");
+                                if old != r.status && old != "unknown" {
+                                    send_notification(&health_handle, &r.name, old, r.status);
+                                }
+                                prev.insert(r.name.clone(), r.status.to_string());
+                            }
+                        }
                         let _ = health_handle.emit("health-status", &results);
                         tokio::time::sleep(tokio::time::Duration::from_secs(interval_secs)).await;
                     }
                 });
             }
+
+            // ── Config Hot Reload ──
+            let reload_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                use notify::{Watcher, RecursiveMode, Event, EventKind};
+                let config_path = config::config_path();
+                let config_dir = config_path.parent().unwrap().to_path_buf();
+
+                let (tx, rx) = std::sync::mpsc::channel::<notify::Result<Event>>();
+                let mut watcher = notify::recommended_watcher(tx).unwrap();
+                let _ = watcher.watch(&config_dir, RecursiveMode::NonRecursive);
+
+                eprintln!("[config] Watching {}", config_dir.display());
+                for event in rx {
+                    if let Ok(event) = event {
+                        if matches!(event.kind, EventKind::Modify(_) | EventKind::Create(_)) {
+                            if event.paths.iter().any(|p| p.ends_with("config.toml")) {
+                                eprintln!("[config] Reloaded config.toml");
+                                let _ = reload_handle.emit("config-reloaded", ());
+                            }
+                        }
+                    }
+                }
+            });
 
             Ok(())
         })

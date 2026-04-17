@@ -616,12 +616,12 @@ indicator 値マッピングは Fly.io と同一。
 - [x] 天気予報地点検索（Open-Meteo Geocoding API）
 - [ ] 右クリックコンテキストメニュー
 
-### Phase 4: 通知・拡張（将来）
-- [ ] ステータス変化時のデスクトップ通知
-- [ ] 履歴グラフ（ミニスパークライン）
+### Phase 4: 通知・拡張（進行中）
+- [x] ステータス変化時のデスクトップ通知（tauri-plugin-notification）
+- [x] config.toml ホットリロード（notify クレートでファイル監視）
+- [x] 履歴グラフ（CPU/MEM ミニスパークライン、直近30サンプル）
 - [ ] プラグインシステム（カスタム監視対象）
 - [ ] ライトテーマ対応
-- [ ] config.toml ホットリロード（notify クレート）
 
 ## HANDOFF 用メモ
 

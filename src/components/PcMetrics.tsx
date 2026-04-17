@@ -1,5 +1,8 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { SystemMetrics, DiskInfo } from "../types";
+import Sparkline from "./Sparkline";
+
+const HISTORY_SIZE = 30; // ~2.5 minutes at 5s intervals
 
 interface Props {
   metrics: SystemMetrics;
@@ -7,6 +10,17 @@ interface Props {
 
 export default function PcMetrics({ metrics: m }: Props) {
   const [diskIdx, setDiskIdx] = useState(0);
+  const cpuHistory = useRef<number[]>([]);
+  const memHistory = useRef<number[]>([]);
+  const [, forceRender] = useState(0);
+
+  // Track CPU/MEM history
+  useEffect(() => {
+    if (m.cpu === 0 && m.mem === 0) return; // skip initial zeros
+    cpuHistory.current = [...cpuHistory.current.slice(-(HISTORY_SIZE - 1)), m.cpu];
+    memHistory.current = [...memHistory.current.slice(-(HISTORY_SIZE - 1)), m.mem];
+    forceRender((n) => n + 1);
+  }, [m.cpu, m.mem]);
 
   const fmtPct = (v: number) => `${Math.round(v)}%`;
   const fmtDisk = (bytes: number) => {
@@ -24,7 +38,6 @@ export default function PcMetrics({ metrics: m }: Props) {
   const pctColor = (v: number) =>
     v >= 90 ? "var(--color-crit)" : v >= 70 ? "var(--color-warn)" : "var(--color-ok)";
 
-  // Current disk to display
   const disks = m.disks.length > 0 ? m.disks : [{ label: "C:", free: m.diskFree, total: m.diskTotal }];
   const currentDisk = disks[diskIdx % disks.length] ?? disks[0];
 
@@ -36,8 +49,14 @@ export default function PcMetrics({ metrics: m }: Props) {
     <div className="section">
       <div className="section-label">PC Metrics</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-        <MetricCard label="CPU" value={fmtPct(m.cpu)} color={pctColor(m.cpu)} />
-        <MetricCard label="MEM" value={fmtPct(m.mem)} color={pctColor(m.mem)} />
+        <MetricCard
+          label="CPU" value={fmtPct(m.cpu)} color={pctColor(m.cpu)}
+          sparkline={<Sparkline data={cpuHistory.current} color={pctColor(m.cpu)} />}
+        />
+        <MetricCard
+          label="MEM" value={fmtPct(m.mem)} color={pctColor(m.mem)}
+          sparkline={<Sparkline data={memHistory.current} color={pctColor(m.mem)} />}
+        />
         <MetricCard
           label={`DISK ${currentDisk.label}`}
           value={fmtDisk(currentDisk.free)}
@@ -51,12 +70,13 @@ export default function PcMetrics({ metrics: m }: Props) {
   );
 }
 
-function MetricCard({ label, value, color, onClick, hint }: {
+function MetricCard({ label, value, color, onClick, hint, sparkline }: {
   label: string;
   value: string;
   color: string;
   onClick?: () => void;
   hint?: string;
+  sparkline?: React.ReactNode;
 }) {
   return (
     <div
@@ -89,11 +109,16 @@ function MetricCard({ label, value, color, onClick, hint }: {
         )}
       </div>
       <div style={{
-        fontSize: 18, fontWeight: 600,
-        fontFamily: "var(--font-mono)",
-        color: color, lineHeight: 1,
+        display: "flex", justifyContent: "space-between", alignItems: "flex-end",
       }}>
-        {value}
+        <div style={{
+          fontSize: 18, fontWeight: 600,
+          fontFamily: "var(--font-mono)",
+          color: color, lineHeight: 1,
+        }}>
+          {value}
+        </div>
+        {sparkline}
       </div>
     </div>
   );
