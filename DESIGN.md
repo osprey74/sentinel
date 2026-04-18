@@ -68,7 +68,7 @@ PCメトリクス・外部サービスステータス・自作サービスのヘ
 {
   "label": "sentinel-main",
   "title": "Sentinel",
-  "width": 320,
+  "width": 220,
   "height": 640,
   "decorations": false,
   "alwaysOnTop": true,
@@ -321,7 +321,7 @@ TrayIconBuilder::new()
 ├──────────────────────────────┤
 │  PC METRICS                  │
 │  ┌──────┐ ┌──────┐          │
-│  │ CPU  │ │ MEM  │          │  ← 2x2 メトリクスグリッド
+│  │ CPU  │ │ MEM  │          │  ← 縦1列メトリクスリスト（現行: 192px幅）
 │  │ 23%  │ │ 68%  │          │
 │  └──────┘ └──────┘          │
 │  ┌──────┐ ┌──────┐          │

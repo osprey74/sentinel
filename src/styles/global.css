@@ -92,7 +92,7 @@ body {
 }
 
 .widget-root {
-  width: 320px;
+  width: 220px;
   background: var(--bg-widget);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -109,7 +109,11 @@ body {
 }
 
 .section {
-  padding: 10px 14px 8px;
+  padding: 13px 14px 11px;
+}
+
+.section:last-child {
+  padding-bottom: 14px;
 }
 
 .section-label {

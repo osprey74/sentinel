@@ -31,6 +31,13 @@ export default function WeatherForecast({ iconStyle, forecast, locationName }: P
     return d.toLocaleDateString("en-US", { weekday: "short" });
   };
 
+  const monthDay = (dateStr: string) => {
+    const d = new Date(dateStr + "T00:00:00");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${mm}/${dd}`;
+  };
+
   return (
     <div className="section">
       <div className="section-label">Weather — {locationName}</div>
@@ -69,8 +76,14 @@ export default function WeatherForecast({ iconStyle, forecast, locationName }: P
             </div>
             <div style={{
               fontSize: 9,
-              color: "var(--text-secondary)",
+              color: "var(--text-tertiary)",
               marginTop: 1,
+            }}>
+              {monthDay(day.date)}
+            </div>
+            <div style={{
+              fontSize: 9,
+              color: "var(--text-secondary)",
             }}>
               {dayLabel(day.date, i)}
             </div>

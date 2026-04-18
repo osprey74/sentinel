@@ -25,18 +25,7 @@ export default function Header({
         cursor: dragLocked ? "default" : "grab",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-        <div style={{ display: "flex", gap: 3 }}>
-          {[0, 1, 2].map((i) => (
-            <span
-              key={i}
-              style={{
-                width: 6, height: 6, borderRadius: "50%",
-                background: "var(--header-dots)",
-              }}
-            />
-          ))}
-        </div>
+      <div style={{ display: "flex", alignItems: "center" }}>
         <span style={{
           fontSize: 13, fontWeight: 600,
           color: "var(--header-title)",

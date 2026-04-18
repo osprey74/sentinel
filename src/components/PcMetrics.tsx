@@ -48,7 +48,7 @@ export default function PcMetrics({ metrics: m }: Props) {
   return (
     <div className="section">
       <div className="section-label">PC Metrics</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         <MetricCard
           label="CPU" value={fmtPct(m.cpu)} color={pctColor(m.cpu)}
           sparkline={<Sparkline data={cpuHistory.current} color={pctColor(m.cpu)} />}

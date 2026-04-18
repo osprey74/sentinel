@@ -7,7 +7,7 @@ import { useSystemMetrics } from "./hooks/useSystemMetrics";
 import { useServiceStatus } from "./hooks/useServiceStatus";
 import { useHealthStatus } from "./hooks/useHealthStatus";
 import Header from "./components/Header";
-import ClockCalendar from "./components/ClockCalendar";
+import { Clock, Calendar } from "./components/ClockCalendar";
 import WeatherForecast from "./components/WeatherForecast";
 import PcMetrics from "./components/PcMetrics";
 import ServiceStatus from "./components/ServiceStatus";
@@ -64,7 +64,7 @@ function App() {
         if (contentHeight > 0) {
           const maxHeight = window.screen.availHeight - 40;
           const height = Math.min(contentHeight, maxHeight);
-          getCurrentWindow().setSize(new LogicalSize(320, height));
+          getCurrentWindow().setSize(new LogicalSize(220, height));
         }
       }
     });
@@ -149,7 +149,9 @@ function App() {
         />
       ) : (
         <>
-          <ClockCalendar />
+          <Clock />
+          <div className="separator" />
+          <Calendar />
           <div className="separator" />
           <WeatherForecast iconStyle={iconStyle} forecast={forecast} locationName={locationName} />
           <div className="separator" />

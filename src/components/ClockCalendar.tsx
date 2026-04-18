@@ -1,16 +1,32 @@
 import { useState, useEffect } from "react";
 
-export default function ClockCalendar() {
+function useNow() {
   const [now, setNow] = useState(new Date());
-
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
+    let timeout: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      setNow(new Date());
+      timeout = setTimeout(tick, 1000 - (Date.now() % 1000));
+    };
+    timeout = setTimeout(tick, 1000 - (Date.now() % 1000));
+    return () => clearTimeout(timeout);
   }, []);
+  return now;
+}
 
+export function Clock() {
+  const now = useNow();
   return (
-    <div className="section" style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+    <div className="section" style={{ display: "flex", justifyContent: "center" }}>
       <AnalogClock now={now} />
+    </div>
+  );
+}
+
+export function Calendar() {
+  const now = useNow();
+  return (
+    <div className="section">
       <MiniCalendar now={now} />
     </div>
   );
@@ -87,7 +103,7 @@ function MiniCalendar({ now }: { now: Date }) {
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
 
   return (
-    <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, flex: 1 }}>
+    <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, width: "100%" }}>
       <div style={{
         fontSize: 10,
         color: "var(--text-secondary)",
@@ -113,7 +129,6 @@ function MiniCalendar({ now }: { now: Date }) {
           const isToday = day === today;
           return (
             <div key={i} style={{
-              width: 22,
               height: 16,
               display: "flex",
               alignItems: "center",
