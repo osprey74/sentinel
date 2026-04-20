@@ -6,12 +6,17 @@ interface ContextMenuProps {
   x: number;
   y: number;
   dragLocked: boolean;
+  passthrough: boolean;
   onClose: () => void;
   onOpenSettings: () => void;
   onToggleLock: () => void;
+  onTogglePassthrough: () => void;
 }
 
-export default function ContextMenu({ x, y, dragLocked, onClose, onOpenSettings, onToggleLock }: ContextMenuProps) {
+export default function ContextMenu({
+  x, y, dragLocked, passthrough,
+  onClose, onOpenSettings, onToggleLock, onTogglePassthrough,
+}: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close on click outside or Escape
@@ -41,6 +46,11 @@ export default function ContextMenu({ x, y, dragLocked, onClose, onOpenSettings,
       label: "Lock Position",
       action: () => { onClose(); onToggleLock(); },
       check: dragLocked,
+    },
+    {
+      label: "Click-Through",
+      action: () => { onClose(); onTogglePassthrough(); },
+      check: passthrough,
     },
     {
       label: "Hide to Tray",

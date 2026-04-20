@@ -271,6 +271,18 @@ fn get_drag_locked(state: tauri::State<'_, DragLockState>) -> bool {
     state.0.load(Ordering::Relaxed)
 }
 
+/// Toggle click-through (passthrough) state and return new value
+#[tauri::command]
+fn toggle_passthrough(app: tauri::AppHandle) -> bool {
+    toggle_passthrough_state(&app)
+}
+
+/// Get current click-through state
+#[tauri::command]
+fn get_passthrough(state: tauri::State<'_, PassthroughState>) -> bool {
+    state.0.load(Ordering::Relaxed)
+}
+
 /// Check if autostart is enabled
 #[tauri::command]
 fn get_autostart(app: tauri::AppHandle) -> bool {
@@ -362,6 +374,30 @@ fn urlencoding(s: &str) -> String {
 struct WeatherCache(Arc<Mutex<Vec<DayForecast>>>);
 struct DragLockState(Arc<AtomicBool>);
 struct LockMenuItemRef(Mutex<Option<tauri::menu::MenuItem<tauri::Wry>>>);
+struct PassthroughState(Arc<AtomicBool>);
+struct PassthroughMenuItemRef(Mutex<Option<tauri::menu::MenuItem<tauri::Wry>>>);
+
+fn passthrough_menu_text(on: bool) -> &'static str {
+    if on { "Disable Click-Through" } else { "Enable Click-Through" }
+}
+
+fn apply_passthrough(app: &tauri::AppHandle, new_val: bool) {
+    app.state::<PassthroughState>().0.store(new_val, Ordering::Relaxed);
+    if let Some(win) = app.get_webview_window("sentinel-main") {
+        let _ = win.set_ignore_cursor_events(new_val);
+    }
+    if let Some(item) = app.state::<PassthroughMenuItemRef>().0.lock().unwrap().as_ref() {
+        let _ = item.set_text(passthrough_menu_text(new_val));
+    }
+    let _ = app.emit("passthrough-changed", new_val);
+}
+
+fn toggle_passthrough_state(app: &tauri::AppHandle) -> bool {
+    let prev = app.state::<PassthroughState>().0.load(Ordering::Relaxed);
+    let new_val = !prev;
+    apply_passthrough(app, new_val);
+    new_val
+}
 
 /// Previous status map for change detection: name -> status
 type StatusMap = Arc<Mutex<HashMap<String, String>>>;
@@ -374,6 +410,7 @@ pub fn run() {
     let svc_status_map: StatusMap = Arc::new(Mutex::new(HashMap::new()));
     let health_status_map: StatusMap = Arc::new(Mutex::new(HashMap::new()));
     let drag_locked = Arc::new(AtomicBool::new(false));
+    let passthrough = Arc::new(AtomicBool::new(true));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -382,9 +419,21 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    use tauri_plugin_global_shortcut::ShortcutState;
+                    if event.state() == ShortcutState::Pressed {
+                        toggle_passthrough_state(app);
+                    }
+                })
+                .build(),
+        )
         .manage(WeatherCache(weather_cache.clone()))
         .manage(DragLockState(drag_locked.clone()))
         .manage(LockMenuItemRef(Mutex::new(None)))
+        .manage(PassthroughState(passthrough.clone()))
+        .manage(PassthroughMenuItemRef(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             get_metrics,
             search_location,
@@ -401,6 +450,8 @@ pub fn run() {
             set_autostart,
             toggle_drag_lock,
             get_drag_locked,
+            toggle_passthrough,
+            get_passthrough,
         ])
         .setup(move |app| {
             // ── Load Config ──
@@ -418,6 +469,9 @@ pub fn run() {
                 .id("lock_position")
                 .build(app)?;
             let lock_pos_for_tray = lock_pos.clone();
+            let passthrough_item = MenuItemBuilder::new(passthrough_menu_text(true))
+                .id("passthrough")
+                .build(app)?;
             let restart = MenuItemBuilder::new("Restart").id("restart").build(app)?;
             let quit = MenuItemBuilder::new("Quit").id("quit").build(app)?;
             let menu = MenuBuilder::new(app)
@@ -426,6 +480,7 @@ pub fn run() {
                 .item(&show)
                 .item(&settings)
                 .item(&lock_pos)
+                .item(&passthrough_item)
                 .separator()
                 .item(&restart)
                 .item(&quit)
@@ -457,6 +512,9 @@ pub fn run() {
                         let _ = lock_pos_for_tray.set_text(if new_val { "🔒 Unlock Position" } else { "Lock Position" });
                         let _ = app.emit("drag-locked", new_val);
                     }
+                    "passthrough" => {
+                        toggle_passthrough_state(app);
+                    }
                     "restart" => {
                         app.restart();
                     }
@@ -486,6 +544,30 @@ pub fn run() {
             {
                 let state = app.state::<LockMenuItemRef>();
                 *state.0.lock().unwrap() = Some(lock_pos);
+            }
+
+            // Store passthrough menu item reference for handlers to update text
+            {
+                let state = app.state::<PassthroughMenuItemRef>();
+                *state.0.lock().unwrap() = Some(passthrough_item);
+            }
+
+            // ── Register Global Shortcut (Ctrl+Alt+S toggles click-through) ──
+            #[cfg(desktop)]
+            {
+                use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
+                let ctrl_alt_s = Shortcut::new(
+                    Some(Modifiers::CONTROL | Modifiers::ALT),
+                    Code::KeyS,
+                );
+                if let Err(e) = app.global_shortcut().register(ctrl_alt_s) {
+                    eprintln!("[shortcut] Failed to register Ctrl+Alt+S: {e}");
+                }
+            }
+
+            // ── Apply Initial Click-Through (default ON) ──
+            if let Some(win) = app.get_webview_window("sentinel-main") {
+                let _ = win.set_ignore_cursor_events(true);
             }
 
             // ── Restore Window Position ──

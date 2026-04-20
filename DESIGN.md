@@ -131,6 +131,26 @@ useEffect(() => {
 > `macOSPrivateApi: true` を有効にし、`EffectsBuilder` でウィンドウエフェクトを
 > 設定すると回避できるケースがある。要実機検証。
 
+#### クリックスルー（Click-Through）モード
+
+ウィジェットを常時最前面に置きながら、通常はクリックが裏のウィンドウに貫通する動作モード。
+
+| 状態 | opacity | 挙動 |
+|------|---------|------|
+| Passthrough ON（起動時デフォルト） | 0.35 固定 | すべてのマウス操作が裏のウィンドウに貫通。ウィジェット自体は操作不可 |
+| Passthrough OFF | `focused ? 1 : 0.35` | 通常のフォーカス連動挙動（クリック、ドラッグ、右クリックすべて可） |
+
+**トグル手段（すべて同一状態を共有）:**
+- **グローバルショートカット `Ctrl+Alt+S`** — クリックスルー中でもOS全体のキー入力から受け付けるため、最主要な復帰手段
+- トレイメニュー「Enable/Disable Click-Through」
+- 右クリックコンテキストメニュー「Click-Through」（Passthrough OFF 時のみ開ける）
+
+**実装方式:**
+- Rust 側で `window.set_ignore_cursor_events(bool)` を呼び、OS のクリック貫通 API を直接制御
+  - Windows: `WS_EX_TRANSPARENT` / macOS: `ignoresMouseEvents` を内部で設定
+- 状態は `PassthroughState(Arc<AtomicBool>)` で保持し、`tauri-plugin-global-shortcut` 経由で `Ctrl+Alt+S` を登録
+- トグル時に `passthrough-changed` イベントを emit、フロントエンドが opacity を切替
+
 #### 閉じるボタン → システムトレイ格納
 
 ウィンドウの閉じる操作（カスタムヘッダーの ✕ ボタン、または Alt+F4 等）では

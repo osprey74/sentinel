@@ -69,7 +69,9 @@ sentinel/
 ## ウィンドウ挙動ルール
 
 - 常時 `alwaysOnTop: true`
-- フォーカスあり → opacity 1.0 / フォーカスなし → opacity 0.35（0.3s transition）
+- 起動時は **クリックスルー ON**（`set_ignore_cursor_events(true)`、opacity 0.35 固定）
+- `Ctrl+Alt+S`（グローバルショートカット）/ トレイ / 右クリックメニューでクリックスルー トグル
+- クリックスルー OFF 時: フォーカスあり → opacity 1.0 / フォーカスなし → opacity 0.35（0.3s transition）
 - 閉じるボタン → `window.hide()` + `api.prevent_close()` でトレイ格納
 - トレイクリック → `window.show()` + `window.set_focus()` で復帰
 - 最大化・最小化は無効（maximizable: false, minimizable: false）

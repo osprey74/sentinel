@@ -33,6 +33,7 @@ function App() {
     () => (localStorage.getItem("sentinel-theme") as "dark" | "light") || "dark"
   );
   const [dragLocked, setDragLocked] = useState(false);
+  const [passthrough, setPassthrough] = useState(true);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -40,6 +41,15 @@ function App() {
   useEffect(() => {
     const unlisten = getCurrentWindow().listen<boolean>("drag-locked", (event) => {
       setDragLocked(event.payload);
+    });
+    return () => { unlisten.then((fn) => fn()); };
+  }, []);
+
+  // Sync passthrough (click-through) state with backend
+  useEffect(() => {
+    invoke<boolean>("get_passthrough").then(setPassthrough);
+    const unlisten = getCurrentWindow().listen<boolean>("passthrough-changed", (event) => {
+      setPassthrough(event.payload);
     });
     return () => { unlisten.then((fn) => fn()); };
   }, []);
@@ -126,7 +136,7 @@ function App() {
         setContextMenu({ x: e.clientX, y: e.clientY });
       }}
       style={{
-        opacity: focused ? 1 : 0.35,
+        opacity: passthrough ? 0.35 : (focused ? 1 : 0.35),
         transition: "opacity 0.3s ease",
       }}
     >
@@ -170,10 +180,14 @@ function App() {
           x={contextMenu.x}
           y={contextMenu.y}
           dragLocked={dragLocked}
+          passthrough={passthrough}
           onClose={() => setContextMenu(null)}
           onOpenSettings={() => setShowSettings(true)}
           onToggleLock={() => {
             invoke<boolean>("toggle_drag_lock").then(setDragLocked);
+          }}
+          onTogglePassthrough={() => {
+            invoke<boolean>("toggle_passthrough").then(setPassthrough);
           }}
         />
       )}
