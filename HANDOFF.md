@@ -1,10 +1,10 @@
 # HANDOFF.md — Sentinel
 
-**最終更新**: 2026-04-25
-**バージョン**: v1.0.4（次バージョン未確定 / Phase 5 作業中）
-**フェーズ**: Phase 1〜4 完了。Phase 5（PC METRICS 拡張）実装済み・未リリース
+**最終更新**: 2026-04-26
+**バージョン**: v1.0.5（CI ビルド完了・ドラフト版動作確認済み・パブリッシュ待ち）
+**フェーズ**: Phase 1〜5 完了
 
-> Phase 5 進行中の方針転換: 当初設計（LHM の WMI Provider 経由）が **LHM v0.9.6 での仕様変更**で動かないことが判明し、HTTP/JSON ベース（Remote Web Server）に切り替えて再実装済み。詳細は下の Phase 5 セクションを参照。
+> v1.0.5 は LibreHardwareMonitor との連携設計を当初の WMI から HTTP/JSON ベースに切り替えて完成（v0.9.6 で WMI Provider が UI から削除されたため）。詳細は下の Phase 5 セクションを参照。
 
 ---
 
@@ -72,13 +72,22 @@
 - `reqwest` に `"blocking"` feature を追加（LHM HTTP 取得を `spawn_blocking` 内で行うため）
 - ~~`wmi = "0.14"`~~ — 当初導入したが、LHM v0.9.6 で WMI Provider が削除されたため**削除済み**
 
-#### リリース前にやること
+#### v1.0.5 で完了
 
-- [ ] `pwsh scripts/setup-lhm.ps1` を CI（GitHub Actions）でも実行するワークフロー追加
+- [x] `pwsh scripts/setup-lhm.ps1` を GitHub Actions のワークフローに組み込み（Windows ジョブのみ）
+- [x] バージョン番号 v1.0.5 確定 → `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json` 更新 + `Cargo.lock` 再生成
+
+#### v1.0.6 候補
+
+- [ ] **LHM `user.config` の pre-seed**: クリーンインストール直後の初回起動から「Start Minimized / Minimize To Tray / Minimize On Close / Remote Web Server → Run」が ON の状態にする。`%LOCALAPPDATA%\LibreHardwareMonitor\<assemblyHash>\<version>\user.config` の XML を Sentinel の Enable Auto-Start 実行時に書き込む方式が最有力。`<assemblyHash>` 部分の決定方法（`StrongName`/`Url` ベースの ApplicationSettings の hashing アルゴリズム）の調査が必要
+- [ ] **LHM v0.9.6 のクラッシュ再発時の対策**: 現状は `%LOCALAPPDATA%\LibreHardwareMonitor` を一度クリアすれば落ち着くが、再発する環境があれば `setup-lhm.ps1` のデフォルトを v0.9.4 にピン留めする。Sentinel 側のパース（HTTP `data.json` 構造）は v0.9.4 でも互換のはず
+- [ ] **LHM HTTP サーバのポート番号を Sentinel 設定で変更可能に**（現状 8085 ハードコード）
 - [ ] About / クレジット表示に LHM の MPL-2.0 ライセンス表記を追加（現在は SettingsPanel フッターのみ）
-- [ ] LHM の "Start Minimized" / "Minimize to Tray" / **"Remote Web Server" ON** を初回起動時に自動有効化する仕組みの検討（現状は初回ユーザーが手動で設定する必要あり）。LHM の設定は `%LOCALAPPDATA%\LibreHardwareMonitor\<id>\user.config` に永続化されるが、初回は LHM 自身が生成するため pre-seed の難易度が高い
-- [ ] LHM HTTP サーバのポート番号を Sentinel 設定で変更可能に（現状 8085 ハードコード）
-- [ ] バージョン番号確定（v1.1.0 想定）→ `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json` 更新 + `cargo generate-lockfile`
+
+#### v1.0.5 リリース時に観測されたトラブル（記録）
+
+- **WiX `light.exe` failure**: 初回ビルドで MSI 生成に失敗。原因は LHM 同梱物の数（11 言語サブディレクトリ + PDB + XML）が多くファイル ID 衝突 / long-path 制約に触れたため。`setup-lhm.ps1` で PDB / XML / 言語サブディレクトリを strip して 80→30 ファイルに削減 → ビルド成功
+- **LHM v0.9.6 クラッシュダイアログ**: バンドル LHM 初回起動時に `Aga.Controls.Tree.TreeNodeAdv.get_NextNode()` で `ArgumentOutOfRangeException`。ダイアログで Continue 押下後は LHM が動作するため機能影響はなし。`%LOCALAPPDATA%\LibreHardwareMonitor` を削除して再起動するとクラッシュは消えた。同所のキャッシュ初期化が原因と推測
 
 ---
 
