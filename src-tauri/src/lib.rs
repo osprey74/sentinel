@@ -1,4 +1,10 @@
 mod config;
+#[cfg(windows)]
+mod disk_map;
+mod lhm_sidecar;
+mod metrics;
+#[cfg(windows)]
+mod nvme;
 mod services;
 
 use serde::{Deserialize, Serialize};
@@ -19,18 +25,28 @@ struct DiskInfo {
     label: String,
     free: u64,
     total: u64,
+    model: Option<String>,
+    temp: Option<f32>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 struct SystemMetrics {
     cpu: f32,
+    cpu_freq_mhz: u64,
     mem: f32,
+    mem_total: u64,
+    mem_used: u64,
     disk_free: u64,
     disk_total: u64,
     disks: Vec<DiskInfo>,
     net_down: f64,
     net_up: f64,
+    gpu: Option<metrics::GpuMetrics>,
+    cpu_temp: Option<f32>,
+    mem_temp: Option<f32>,
+    disk_temps: Vec<metrics::DiskTemp>,
+    lhm_available: bool,
 }
 
 #[derive(Clone, Serialize)]
@@ -78,15 +94,7 @@ struct GeoResponse {
 
 #[tauri::command]
 fn get_metrics() -> SystemMetrics {
-    SystemMetrics {
-        cpu: 0.0,
-        mem: 0.0,
-        disk_free: 0,
-        disk_total: 0,
-        disks: vec![],
-        net_down: 0.0,
-        net_up: 0.0,
-    }
+    SystemMetrics::default()
 }
 
 /// Search cities via Open-Meteo Geocoding API
@@ -452,6 +460,10 @@ pub fn run() {
             get_drag_locked,
             toggle_passthrough,
             get_passthrough,
+            lhm_sidecar::lhm_status,
+            lhm_sidecar::lhm_install_autostart,
+            lhm_sidecar::lhm_remove_autostart,
+            lhm_sidecar::lhm_launch_now,
         ])
         .setup(move |app| {
             // ── Load Config ──
@@ -587,6 +599,7 @@ pub fn run() {
                 let mut networks = Networks::new_with_refreshed_list();
 
                 sys.refresh_cpu_usage();
+                sys.refresh_cpu_frequency();
                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
                 let mut interval =
@@ -596,19 +609,21 @@ pub fn run() {
                     interval.tick().await;
 
                     sys.refresh_cpu_usage();
+                    sys.refresh_cpu_frequency();
                     sys.refresh_memory();
                     networks.refresh();
 
                     let cpu = sys.global_cpu_usage();
+                    let cpu_freq_mhz = sys.cpus().first().map(|c| c.frequency()).unwrap_or(0);
                     let total_mem = sys.total_memory();
+                    let used_mem = sys.used_memory();
                     let mem = if total_mem > 0 {
-                        sys.used_memory() as f32 / total_mem as f32 * 100.0
+                        used_mem as f32 / total_mem as f32 * 100.0
                     } else {
                         0.0
                     };
 
                     let disks_list = Disks::new_with_refreshed_list();
-                    // Collect all local drives with non-zero free space
                     let mut all_disks: Vec<DiskInfo> = disks_list
                         .iter()
                         .filter(|d| d.total_space() > 0 && d.available_space() > 0)
@@ -619,17 +634,12 @@ pub fn run() {
                                 label,
                                 free: d.available_space(),
                                 total: d.total_space(),
+                                model: None,
+                                temp: None,
                             }
                         })
                         .collect();
                     all_disks.sort_by(|a, b| a.label.cmp(&b.label));
-                    // Primary disk for backward compat
-                    let primary = all_disks.iter()
-                        .find(|d| d.label == "C:" || d.label == "/")
-                        .or_else(|| all_disks.first());
-                    let (disk_free, disk_total) = primary
-                        .map(|d| (d.free, d.total))
-                        .unwrap_or((0, 0));
 
                     let (rx_bytes, tx_bytes) =
                         networks.iter().fold((0u64, 0u64), |(r, t), (_, data)| {
@@ -638,16 +648,72 @@ pub fn run() {
                     let net_down = rx_bytes as f64 / metrics_poll as f64;
                     let net_up = tx_bytes as f64 / metrics_poll as f64;
 
-                    let metrics = SystemMetrics {
+                    // GPU (NVML) + temperatures (LibreHardwareMonitor HTTP) + NVMe SMART —
+                    // all blocking. Run on the blocking pool so the async runtime is not
+                    // stalled, and resolve drive-letter -> phys/model in the same task to
+                    // attach a per-disk temperature.
+                    let pre_disks = all_disks.clone();
+                    let blocking_result = tokio::task::spawn_blocking(move || {
+                        let extended = metrics::collect();
+                        let mut enriched = pre_disks;
+                        #[cfg(windows)]
+                        {
+                            let nvme_indexed = nvme::collect_nvme_temps_indexed();
+                            for d in enriched.iter_mut() {
+                                let (phys, model) = disk_map::resolve(&d.label);
+                                d.model = model.clone();
+                                // Match by phys drive against NVMe SMART first
+                                let nvme_hit = phys.and_then(|p| {
+                                    nvme_indexed.iter().find(|(i, _)| *i == p).map(|(_, t)| *t)
+                                });
+                                // Fall back to LHM model match (substring, case-insensitive)
+                                let lhm_hit = model.as_ref().and_then(|m| {
+                                    let ml = m.to_ascii_lowercase();
+                                    extended.disk_temps.iter().find(|t| {
+                                        let lab = t.label.to_ascii_lowercase();
+                                        // Compare on collapsed whitespace to handle "WDC  WDS500..." vs "WDC WDS500..."
+                                        let lab_norm: String = lab.split_whitespace().collect();
+                                        let ml_norm: String = ml.split_whitespace().collect();
+                                        lab_norm.contains(&ml_norm) || ml_norm.contains(&lab_norm)
+                                    }).map(|t| t.temp)
+                                });
+                                d.temp = nvme_hit.or(lhm_hit);
+                            }
+                        }
+                        (extended, enriched)
+                    })
+                    .await;
+
+                    let (extended, enriched_disks) = blocking_result.unwrap_or_else(|_| {
+                        (metrics::ExtendedMetrics::default(), all_disks.clone())
+                    });
+
+                    // Primary disk for backward compat
+                    let primary = enriched_disks.iter()
+                        .find(|d| d.label == "C:" || d.label == "/")
+                        .or_else(|| enriched_disks.first());
+                    let (disk_free, disk_total) = primary
+                        .map(|d| (d.free, d.total))
+                        .unwrap_or((0, 0));
+
+                    let metrics_payload = SystemMetrics {
                         cpu,
+                        cpu_freq_mhz,
                         mem,
+                        mem_total: total_mem,
+                        mem_used: used_mem,
                         disk_free,
                         disk_total,
-                        disks: all_disks,
+                        disks: enriched_disks,
                         net_down,
                         net_up,
+                        gpu: extended.gpu,
+                        cpu_temp: extended.cpu_temp,
+                        mem_temp: extended.mem_temp,
+                        disk_temps: extended.disk_temps,
+                        lhm_available: extended.lhm_available,
                     };
-                    let _ = metrics_handle.emit("system-metrics", &metrics);
+                    let _ = metrics_handle.emit("system-metrics", &metrics_payload);
                 }
             });
 

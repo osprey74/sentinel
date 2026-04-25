@@ -17,3 +17,7 @@ Thumbs.db
 
 # Tauri
 src-tauri/gen/
+
+# Bundled LibreHardwareMonitor (MPL-2.0) — fetched by scripts/setup-lhm.ps1 at build time
+src-tauri/resources/lhm/*
+!src-tauri/resources/lhm/README.txt

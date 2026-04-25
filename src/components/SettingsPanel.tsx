@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import type { IconStyle } from "./WeatherIcon";
+import type { SystemMetrics } from "../types";
 import WeatherIcon from "./WeatherIcon";
 import { ServiceEditor, HealthEditor } from "./TargetEditor";
 
@@ -34,6 +36,13 @@ interface HealthTarget {
   expectedStatus: number;
 }
 
+interface LhmStatus {
+  bundled: boolean;
+  bundledPath: string | null;
+  taskInstalled: boolean;
+  running: boolean;
+}
+
 interface SettingsPanelProps {
   onClose: () => void;
   iconStyle: IconStyle;
@@ -56,11 +65,28 @@ export default function SettingsPanel({
   const [serviceTargets, setServiceTargets] = useState<ServiceTarget[] | null>(null);
   const [healthTargets, setHealthTargets] = useState<HealthTarget[] | null>(null);
   const [autostart, setAutostart] = useState<boolean | null>(null);
+  const [lhmAvailable, setLhmAvailable] = useState<boolean | null>(null);
+  const [lhmStatus, setLhmStatus] = useState<LhmStatus | null>(null);
+  const [lhmBusy, setLhmBusy] = useState(false);
+  const [lhmError, setLhmError] = useState<string | null>(null);
+
+  const refreshLhmStatus = useCallback(() => {
+    invoke<LhmStatus>("lhm_status").then(setLhmStatus).catch(() => setLhmStatus(null));
+  }, []);
 
   useEffect(() => {
     invoke<ServiceTarget[]>("get_service_targets").then(setServiceTargets);
     invoke<HealthTarget[]>("get_health_targets").then(setHealthTargets);
     invoke<boolean>("get_autostart").then(setAutostart);
+    refreshLhmStatus();
+  }, [refreshLhmStatus]);
+
+  // Subscribe to live system-metrics events to reflect LHM running state
+  useEffect(() => {
+    const unlisten = listen<SystemMetrics>("system-metrics", (event) => {
+      setLhmAvailable(event.payload.lhmAvailable);
+    });
+    return () => { unlisten.then((fn) => fn()); };
   }, []);
 
   const handleAutostart = useCallback(async (enabled: boolean) => {
@@ -163,6 +189,33 @@ export default function SettingsPanel({
               );
             })}
           </div>
+        </div>
+
+        {/* Hardware Sensors (LibreHardwareMonitor) */}
+        <div style={{ marginBottom: 14 }}>
+          <SectionLabel>Hardware Sensors</SectionLabel>
+          <LhmPanel
+            lhmAvailable={lhmAvailable}
+            status={lhmStatus}
+            busy={lhmBusy}
+            error={lhmError}
+            onRefresh={refreshLhmStatus}
+            onAction={async (kind) => {
+              setLhmError(null);
+              setLhmBusy(true);
+              try {
+                if (kind === "install") await invoke("lhm_install_autostart");
+                else if (kind === "remove") await invoke("lhm_remove_autostart");
+                else if (kind === "launch") await invoke("lhm_launch_now");
+              } catch (e) {
+                setLhmError(typeof e === "string" ? e : String(e));
+              } finally {
+                setLhmBusy(false);
+                // Status may take a moment to reflect; refresh after a tick
+                setTimeout(refreshLhmStatus, 800);
+              }
+            }}
+          />
         </div>
 
         {/* Autostart */}
@@ -341,6 +394,168 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
       textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6,
     }}>
       {children}
+    </div>
+  );
+}
+
+interface LhmPanelProps {
+  lhmAvailable: boolean | null;
+  status: LhmStatus | null;
+  busy: boolean;
+  error: string | null;
+  onRefresh: () => void;
+  onAction: (kind: "install" | "remove" | "launch") => void;
+}
+
+function LhmPanel({ lhmAvailable, status, busy, error, onRefresh, onAction }: LhmPanelProps) {
+  const wmiBadgeColor = lhmAvailable === null
+    ? "var(--text-tertiary)"
+    : lhmAvailable ? "var(--color-ok)" : "var(--text-tertiary)";
+  const wmiBadgeText = lhmAvailable === null ? "..." : lhmAvailable ? "DETECTED" : "NOT RUNNING";
+
+  const bundled = status?.bundled ?? false;
+  const taskInstalled = status?.taskInstalled ?? false;
+
+  const btnBase = {
+    flex: 1,
+    padding: "6px 8px",
+    borderRadius: 6,
+    border: "1px solid var(--border-faint)",
+    background: "var(--bg-card)",
+    color: "var(--text-primary)",
+    fontSize: 10,
+    fontFamily: "var(--font-mono)",
+    fontWeight: 600,
+    cursor: busy ? "wait" : "pointer",
+    opacity: busy ? 0.5 : 1,
+    transition: "all 0.15s",
+  } as const;
+
+  return (
+    <div style={{
+      padding: "8px 10px", borderRadius: 8,
+      background: "var(--bg-card)", border: "1px solid var(--border-faint)",
+    }}>
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        marginBottom: 6,
+      }}>
+        <span style={{ fontSize: 11, color: "var(--text-primary)", fontWeight: 600 }}>
+          LibreHardwareMonitor
+        </span>
+        <span
+          onClick={onRefresh}
+          style={{
+            fontSize: 10, fontFamily: "var(--font-mono)", fontWeight: 600,
+            color: wmiBadgeColor, cursor: "pointer",
+          }}
+          title="Click to refresh"
+        >
+          {wmiBadgeText}
+        </span>
+      </div>
+
+      <div style={{ fontSize: 10, color: "var(--text-secondary)", lineHeight: 1.5, marginBottom: 8 }}>
+        GPU 使用率・GPU 温度・NVMe SSD 温度は Sentinel 単体で取得します。
+        <strong style={{ color: "var(--text-primary)" }}>CPU 温度</strong>
+        （およびハードウェアセンサー対応 RAM の温度）を表示するには:
+        <br />
+        <span style={{ color: "var(--text-tertiary)" }}>1.</span> 下の <strong style={{ color: "var(--text-primary)" }}>Enable Auto-Start</strong> でログオン時の管理者起動を登録（初回のみ UAC）
+        <br />
+        <span style={{ color: "var(--text-tertiary)" }}>2.</span> LHM の <strong style={{ color: "var(--text-primary)" }}>Options → Remote Web Server</strong> をチェック ON（ポート 8085）
+        <br />
+        Sentinel は <code style={{ fontFamily: "var(--font-mono)", color: "var(--text-primary)" }}>127.0.0.1:8085/data.json</code> を購読して温度を取得します。
+      </div>
+
+      {/* Status table */}
+      <div style={{
+        display: "grid", gridTemplateColumns: "1fr auto", rowGap: 2, columnGap: 8,
+        fontSize: 10, fontFamily: "var(--font-mono)", marginBottom: 8,
+      }}>
+        <span style={{ color: "var(--text-tertiary)" }}>Bundled binary</span>
+        <span style={{ color: bundled ? "var(--color-ok)" : "var(--text-tertiary)", fontWeight: 600 }}>
+          {bundled ? "YES" : "NO"}
+        </span>
+        <span style={{ color: "var(--text-tertiary)" }}>Auto-start task</span>
+        <span style={{ color: taskInstalled ? "var(--color-ok)" : "var(--text-tertiary)", fontWeight: 600 }}>
+          {taskInstalled ? "INSTALLED" : "NOT INSTALLED"}
+        </span>
+        <span style={{ color: "var(--text-tertiary)" }}>Process</span>
+        <span style={{ color: status?.running ? "var(--color-ok)" : "var(--text-tertiary)", fontWeight: 600 }}>
+          {status?.running ? "RUNNING" : "STOPPED"}
+        </span>
+      </div>
+
+      {!bundled && (
+        <div style={{
+          padding: "6px 8px", borderRadius: 6, marginBottom: 8,
+          background: "rgba(239, 159, 39, 0.08)", border: "1px solid rgba(239, 159, 39, 0.3)",
+          fontSize: 10, color: "var(--text-secondary)", lineHeight: 1.5,
+        }}>
+          LHM バイナリがバンドルされていません。リポジトリで{" "}
+          <code style={{ fontFamily: "var(--font-mono)", color: "var(--text-primary)" }}>
+            pwsh ./scripts/setup-lhm.ps1
+          </code>
+          {" "}を実行してから再ビルドしてください。
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 4, marginBottom: error ? 8 : 0 }}>
+        {!taskInstalled ? (
+          <button
+            type="button"
+            disabled={busy || !bundled}
+            onClick={() => onAction("install")}
+            style={{
+              ...btnBase,
+              background: bundled ? "rgba(29, 158, 117, 0.15)" : "var(--bg-card)",
+              borderColor: bundled ? "rgba(29, 158, 117, 0.4)" : "var(--border-faint)",
+              color: bundled ? "var(--color-ok)" : "var(--text-tertiary)",
+              opacity: busy || !bundled ? 0.5 : 1,
+            }}
+            title={bundled ? "Register scheduled task (UAC prompt)" : "LHM binary not bundled"}
+          >
+            Enable Auto-Start
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onAction("remove")}
+            style={btnBase}
+            title="Remove scheduled task (UAC prompt)"
+          >
+            Disable
+          </button>
+        )}
+        <button
+          type="button"
+          disabled={busy || !bundled}
+          onClick={() => onAction("launch")}
+          style={{ ...btnBase, opacity: busy || !bundled ? 0.5 : 1 }}
+          title={bundled ? "Launch LHM now (UAC prompt)" : "LHM binary not bundled"}
+        >
+          Launch Now
+        </button>
+      </div>
+
+      {error && (
+        <div style={{
+          padding: "6px 8px", borderRadius: 6,
+          background: "rgba(226, 75, 74, 0.08)", border: "1px solid rgba(226, 75, 74, 0.3)",
+          fontSize: 10, color: "var(--color-crit)", fontFamily: "var(--font-mono)",
+          wordBreak: "break-word",
+        }}>
+          {error}
+        </div>
+      )}
+
+      <div style={{
+        fontSize: 9, color: "var(--text-tertiary)",
+        fontFamily: "var(--font-mono)", marginTop: 6,
+      }}>
+        github.com/LibreHardwareMonitor/LibreHardwareMonitor (MPL-2.0)
+      </div>
     </div>
   );
 }

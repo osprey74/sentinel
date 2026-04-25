@@ -1,8 +1,84 @@
 # HANDOFF.md — Sentinel
 
-**最終更新**: 2026-04-17
-**バージョン**: v1.0.0
-**フェーズ**: Phase 1〜4 完了、v1.0.0 リリース
+**最終更新**: 2026-04-25
+**バージョン**: v1.0.4（次バージョン未確定 / Phase 5 作業中）
+**フェーズ**: Phase 1〜4 完了。Phase 5（PC METRICS 拡張）実装済み・未リリース
+
+> Phase 5 進行中の方針転換: 当初設計（LHM の WMI Provider 経由）が **LHM v0.9.6 での仕様変更**で動かないことが判明し、HTTP/JSON ベース（Remote Web Server）に切り替えて再実装済み。詳細は下の Phase 5 セクションを参照。
+
+---
+
+## 次バージョン作業（未リリース）
+
+### Phase 5: PC METRICS 拡張 — GPU・温度モニタリング
+
+#### 取得項目の追加
+
+| 項目 | 取得方法 | admin 必要？ | 備考 |
+|------|---------|-------------|------|
+| GPU 名・使用率・温度・VRAM | NVML（`nvml-wrapper`） | 不要 | NVIDIA のみ。GPU 不在時は表示せず |
+| NVMe SSD 温度 | `IOCTL_STORAGE_QUERY_PROPERTY` 自前実装 | **不要** | LHM 起動状態に依存しない |
+| CPU パッケージ温度 | LibreHardwareMonitor HTTP `/data.json`（127.0.0.1:8085） | LHM 側で必要 | "CPU Package" → "Tctl/Tdie" → "Core Average" → "Core Max" の優先順 |
+| メモリ温度 | LibreHardwareMonitor HTTP `/data.json` | LHM 側で必要 | DDR5 等センサーありの場合のみ。DDR4 はハード側にセンサー無し |
+| SATA SSD/HDD 温度 | LibreHardwareMonitor HTTP `/data.json` | LHM 側で必要 | NVMe IOCTL でカバーできない部分の補完 |
+
+> **重要**: 当初は LHM の WMI namespace `ROOT\LibreHardwareMonitor` を使う設計だったが、**LHM v0.9.6 で WMI Provider オプションが UI から削除**されたため、HTTP/JSON ベースに切り替えた（`Options → Remote Web Server` を ON にする必要あり）。`wmi` クレートは依存から削除済み。
+
+#### LibreHardwareMonitor 連携の二段構成
+
+1. **HTTP クエリ**: LHM の Remote Web Server（`127.0.0.1:8085/data.json`）を blocking reqwest で取得し、JSON ツリーを再帰的に walk して `ImageURL` に "temperature" を含むノードを抽出。親ノードの `ImageURL` / `Text` で CPU・メモリ・ストレージに分類
+2. **サイドカー方式**: LHM を Sentinel 同梱で配布し、Windows タスクスケジューラに `RL HIGHEST` で登録 → ログオン時に UAC 無しで自動昇格起動。設定パネルから 1 クリック（UAC 1 回）で有効化／解除。**ユーザー側追加作業**: LHM 初回起動時に Options → Remote Web Server をチェック ON する（永続化される）
+
+#### 新規モジュール構成
+
+| ファイル | 役割 |
+|---------|------|
+| `src-tauri/src/metrics.rs` | GPU（NVML）+ LHM HTTP `/data.json` 温度取得の統合エントリ。`tokio::task::spawn_blocking` で async ループから分離。`reqwest::blocking` で 2 秒タイムアウトの GET、JSON ツリーを再帰的に walk |
+| `src-tauri/src/nvme.rs` | NVMe Health Information Log（Page 0x02）の自前リーダー。`-20℃〜150℃` サニティチェック付き |
+| `src-tauri/src/lhm_sidecar.rs` | バンドル済み LHM の状態取得・スケジュールタスク登録/削除・即時起動。ShellExecuteEx + `runas` で UAC 昇格 |
+| `scripts/setup-lhm.ps1` | GitHub Releases から最新 LHM portable をダウンロードし `src-tauri/resources/lhm/` に展開、MPL ライセンスも同梱 |
+| `src-tauri/resources/lhm/` | LHM 配置先（バンドルリソース）。空でもビルド可（ステータス UI で「未バンドル」と表示） |
+
+#### 新規 Tauri コマンド
+
+| コマンド | 用途 |
+|---------|------|
+| `lhm_status` | バンドル有無 / タスク登録状態 / プロセス稼働状態を返す |
+| `lhm_install_autostart` | スケジュールタスク登録（UAC）＋ LHM 即時起動 |
+| `lhm_remove_autostart` | スケジュールタスク削除（UAC） |
+| `lhm_launch_now` | LHM を即時昇格起動（UAC） |
+
+#### `SystemMetrics`（`Rust` / `TypeScript`）拡張フィールド
+
+- `gpu: GpuMetrics | null` — `{ name, usage, temp, memUsed, memTotal }`
+- `cpuTemp: number | null` / `memTemp: number | null`
+- `diskTemps: DiskTemp[]` — NVMe IOCTL + LHM の合算（UI は max を表示）
+- `lhmAvailable: boolean` — LHM HTTP サーバ（`127.0.0.1:8085/data.json`）の到達可能性
+
+#### UI 変更点
+
+- **PcMetrics**: GPU カードを新設（使用率＋スパークライン＋VRAM ヒント＋温度）。各カードに温度を主値の右側に小さく併記。70℃ で warn、85℃ で crit に色変化
+- **SettingsPanel**: 「Hardware Sensors」セクション刷新。`LhmPanel` で:
+  - WMI 検出バッジ（クリック再取得）
+  - Bundled binary / Auto-start task / Process の状態テーブル
+  - Enable Auto-Start / Disable / Launch Now ボタン（busy 時 disable、未バンドル時グレーアウト）
+  - LHM 未バンドル時は `pwsh ./scripts/setup-lhm.ps1` 実行を促す警告ボックス
+  - MPL-2.0 ライセンス明記
+
+#### 依存追加・変更
+
+- `nvml-wrapper = "0.10"`（Windows のみ）— NVIDIA NVML
+- `windows = "0.59"`（Windows のみ）— IOCTL（NVMe）+ ShellExecuteEx（昇格起動）。features: `Win32_Foundation`, `Win32_Security`, `Win32_Storage_FileSystem`, `Win32_System_IO`, `Win32_System_Ioctl`, `Win32_System_Registry`, `Win32_System_Threading`, `Win32_UI_Shell`, `Win32_UI_WindowsAndMessaging`
+- `reqwest` に `"blocking"` feature を追加（LHM HTTP 取得を `spawn_blocking` 内で行うため）
+- ~~`wmi = "0.14"`~~ — 当初導入したが、LHM v0.9.6 で WMI Provider が削除されたため**削除済み**
+
+#### リリース前にやること
+
+- [ ] `pwsh scripts/setup-lhm.ps1` を CI（GitHub Actions）でも実行するワークフロー追加
+- [ ] About / クレジット表示に LHM の MPL-2.0 ライセンス表記を追加（現在は SettingsPanel フッターのみ）
+- [ ] LHM の "Start Minimized" / "Minimize to Tray" / **"Remote Web Server" ON** を初回起動時に自動有効化する仕組みの検討（現状は初回ユーザーが手動で設定する必要あり）。LHM の設定は `%LOCALAPPDATA%\LibreHardwareMonitor\<id>\user.config` に永続化されるが、初回は LHM 自身が生成するため pre-seed の難易度が高い
+- [ ] LHM HTTP サーバのポート番号を Sentinel 設定で変更可能に（現状 8085 ハードコード）
+- [ ] バージョン番号確定（v1.1.0 想定）→ `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json` 更新 + `cargo generate-lockfile`
 
 ---
 

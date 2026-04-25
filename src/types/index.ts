@@ -3,17 +3,42 @@ export interface DiskInfo {
   label: string;
   free: number;
   total: number;
+  model: string | null;
+  temp: number | null;
 }
 
-/** PC hardware metrics from sysinfo */
+/** NVIDIA GPU metrics from NVML (Windows only) */
+export interface GpuMetrics {
+  name: string;
+  usage: number;
+  temp: number | null;
+  memUsed: number;
+  memTotal: number;
+}
+
+/** Per-storage-device temperature reported by LibreHardwareMonitor */
+export interface DiskTemp {
+  label: string;
+  temp: number;
+}
+
+/** PC hardware metrics from sysinfo + NVML + LibreHardwareMonitor */
 export interface SystemMetrics {
   cpu: number;
+  cpuFreqMhz: number;
   mem: number;
+  memTotal: number;
+  memUsed: number;
   diskFree: number;
   diskTotal: number;
   disks: DiskInfo[];
   netDown: number;
   netUp: number;
+  gpu: GpuMetrics | null;
+  cpuTemp: number | null;
+  memTemp: number | null;
+  diskTemps: DiskTemp[];
+  lhmAvailable: boolean;
 }
 
 /** Service status from Statuspage API */

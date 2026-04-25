@@ -13,12 +13,20 @@ import type { SystemMetrics } from "../types";
 export function useSystemMetrics(): SystemMetrics {
   const [metrics, setMetrics] = useState<SystemMetrics>({
     cpu: 0,
+    cpuFreqMhz: 0,
     mem: 0,
+    memTotal: 0,
+    memUsed: 0,
     diskFree: 0,
     diskTotal: 0,
     disks: [],
     netDown: 0,
     netUp: 0,
+    gpu: null,
+    cpuTemp: null,
+    memTemp: null,
+    diskTemps: [],
+    lhmAvailable: false,
   });
 
   useEffect(() => {
