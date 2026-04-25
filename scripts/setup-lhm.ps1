@@ -139,6 +139,30 @@ try {
     Write-Warning "[setup-lhm] could not fetch license: $_"
 }
 
+# Strip non-runtime files to keep the bundle small and avoid WiX MSI build
+# issues (file-ID collisions and path-length limits during light.exe link).
+# LHM only needs the .NET assemblies + native deps + config to run; debug
+# symbols and localized UI resources are optional.
+$pdbCount = 0
+$xmlCount = 0
+$langCount = 0
+Get-ChildItem -Path $targetDir -Filter '*.pdb' -Recurse | ForEach-Object {
+    Remove-Item -Force -LiteralPath $_.FullName
+    $pdbCount++
+}
+Get-ChildItem -Path $targetDir -Filter '*.xml' -Recurse | ForEach-Object {
+    Remove-Item -Force -LiteralPath $_.FullName
+    $xmlCount++
+}
+# Language resource subdirs are named like "de", "ja", "zh-CN".
+Get-ChildItem -Path $targetDir -Directory |
+    Where-Object { $_.Name -match '^[a-z]{2}(-[A-Za-z]+)?$' } |
+    ForEach-Object {
+        Remove-Item -Recurse -Force -LiteralPath $_.FullName
+        $langCount++
+    }
+Write-Host "[setup-lhm] stripped: $pdbCount pdb, $xmlCount xml, $langCount language dirs"
+
 # Final sanity check
 if (-not (Test-Path $exe)) {
     Write-Error "[setup-lhm] expected $exe but it is missing — release archive layout may have changed."
