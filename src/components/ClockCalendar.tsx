@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useHolidays } from "../hooks/useHolidays";
 
 function useNow() {
   const [now, setNow] = useState(new Date());
@@ -89,6 +90,7 @@ function AnalogClock({ now }: { now: Date }) {
 }
 
 function MiniCalendar({ now }: { now: Date }) {
+  const holidays = useHolidays();
   const year = now.getFullYear();
   const month = now.getMonth();
   const today = now.getDate();
@@ -101,6 +103,10 @@ function MiniCalendar({ now }: { now: Date }) {
   const cells: (number | null)[] = [];
   for (let i = 0; i < firstDay; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  const monthPrefix = `${year}-${String(month + 1).padStart(2, "0")}`;
+  const todayKey = `${monthPrefix}-${String(today).padStart(2, "0")}`;
+  const todayHolidayName = holidays[todayKey];
 
   return (
     <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, width: "100%" }}>
@@ -127,30 +133,50 @@ function MiniCalendar({ now }: { now: Date }) {
         {cells.map((day, i) => {
           const dow = i % 7;
           const isToday = day === today;
+          const dateKey = day === null
+            ? null
+            : `${monthPrefix}-${String(day).padStart(2, "0")}`;
+          const holidayName = dateKey ? holidays[dateKey] : undefined;
+          const isHoliday = Boolean(holidayName);
           return (
-            <div key={i} style={{
-              height: 16,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: day === null
-                ? "transparent"
-                : isToday
-                  ? "#fff"
-                  : dow === 0
-                    ? "var(--sunday)"
-                    : dow === 6
-                      ? "var(--saturday)"
-                      : "var(--text-secondary)",
-              background: isToday ? "var(--color-ok)" : "transparent",
-              borderRadius: isToday ? 3 : 0,
-              fontWeight: isToday ? 600 : 400,
-            }}>
+            <div
+              key={i}
+              title={holidayName}
+              style={{
+                height: 16,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: day === null
+                  ? "transparent"
+                  : isToday
+                    ? "#fff"
+                    : isHoliday || dow === 0
+                      ? "var(--sunday)"
+                      : dow === 6
+                        ? "var(--saturday)"
+                        : "var(--text-secondary)",
+                background: isToday ? "var(--color-ok)" : "transparent",
+                borderRadius: isToday ? 3 : 0,
+                fontWeight: isToday || isHoliday ? 600 : 400,
+              }}
+            >
               {day ?? ""}
             </div>
           );
         })}
       </div>
+      {todayHolidayName && (
+        <div style={{
+          fontSize: 9,
+          color: "var(--sunday)",
+          textAlign: "center",
+          marginTop: 4,
+          fontWeight: 600,
+        }}>
+          {todayHolidayName}
+        </div>
+      )}
     </div>
   );
 }

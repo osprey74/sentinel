@@ -51,10 +51,15 @@ interface SettingsPanelProps {
   onLocationChange: (name: string) => void;
   theme: "dark" | "light";
   onThemeChange: (theme: "dark" | "light") => void;
+  activeOpacity: number;
+  onActiveOpacityChange: (value: number) => void;
+  dimOpacity: number;
+  onDimOpacityChange: (value: number) => void;
 }
 
 export default function SettingsPanel({
   onClose, iconStyle, onIconStyleChange, locationName, onLocationChange, theme, onThemeChange,
+  activeOpacity, onActiveOpacityChange, dimOpacity, onDimOpacityChange,
 }: SettingsPanelProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<GeoResult[]>([]);
@@ -189,6 +194,22 @@ export default function SettingsPanel({
               );
             })}
           </div>
+        </div>
+
+        {/* Opacity */}
+        <div style={{ marginBottom: 14 }}>
+          <SectionLabel>Opacity</SectionLabel>
+          <OpacitySlider
+            label="Active (focused)"
+            value={activeOpacity}
+            onChange={onActiveOpacityChange}
+          />
+          <div style={{ height: 6 }} />
+          <OpacitySlider
+            label="Dim (unfocused / click-through)"
+            value={dimOpacity}
+            onChange={onDimOpacityChange}
+          />
         </div>
 
         {/* Hardware Sensors (LibreHardwareMonitor) */}
@@ -383,6 +404,45 @@ export default function SettingsPanel({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function OpacitySlider({
+  label, value, onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div style={{
+      padding: "6px 10px", borderRadius: 8,
+      background: "var(--bg-card)", border: "1px solid var(--border-faint)",
+    }}>
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        fontSize: 11, marginBottom: 4,
+      }}>
+        <span style={{ color: "var(--text-primary)" }}>{label}</span>
+        <span style={{
+          fontFamily: "var(--font-mono)", fontWeight: 600,
+          color: "var(--color-ok)",
+        }}>
+          {Math.round(value * 100)}%
+        </span>
+      </div>
+      <input
+        type="range"
+        aria-label={label}
+        title={label}
+        min={10}
+        max={100}
+        step={5}
+        value={Math.round(value * 100)}
+        onChange={(e) => onChange(Number(e.target.value) / 100)}
+        style={{ width: "100%", accentColor: "var(--color-ok)" }}
+      />
     </div>
   );
 }

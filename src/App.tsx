@@ -17,6 +17,13 @@ import ContextMenu from "./components/ContextMenu";
 import MemoSection from "./components/MemoSection";
 import type { IconStyle } from "./components/WeatherIcon";
 
+function parseOpacity(raw: string | null, fallback: number): number {
+  if (raw === null) return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(1, Math.max(0.1, n));
+}
+
 function App() {
   const focused = useFocus();
   const forecast = useWeather();
@@ -31,6 +38,12 @@ function App() {
   const [locationName, setLocationName] = useState("Loading...");
   const [theme, setTheme] = useState<"dark" | "light">(
     () => (localStorage.getItem("sentinel-theme") as "dark" | "light") || "dark"
+  );
+  const [activeOpacity, setActiveOpacity] = useState<number>(
+    () => parseOpacity(localStorage.getItem("sentinel-active-opacity"), 1.0)
+  );
+  const [dimOpacity, setDimOpacity] = useState<number>(
+    () => parseOpacity(localStorage.getItem("sentinel-dim-opacity"), 0.35)
   );
   const [dragLocked, setDragLocked] = useState(false);
   const [passthrough, setPassthrough] = useState(true);
@@ -62,6 +75,16 @@ function App() {
   const handleThemeChange = useCallback((t: "dark" | "light") => {
     setTheme(t);
     localStorage.setItem("sentinel-theme", t);
+  }, []);
+
+  const handleActiveOpacityChange = useCallback((value: number) => {
+    setActiveOpacity(value);
+    localStorage.setItem("sentinel-active-opacity", String(value));
+  }, []);
+
+  const handleDimOpacityChange = useCallback((value: number) => {
+    setDimOpacity(value);
+    localStorage.setItem("sentinel-dim-opacity", String(value));
   }, []);
 
   // Auto-resize window to fit content
@@ -136,7 +159,7 @@ function App() {
         setContextMenu({ x: e.clientX, y: e.clientY });
       }}
       style={{
-        opacity: passthrough ? 0.35 : (focused ? 1 : 0.35),
+        opacity: passthrough ? dimOpacity : (focused ? activeOpacity : dimOpacity),
         transition: "opacity 0.3s ease",
       }}
     >
@@ -156,6 +179,10 @@ function App() {
           onLocationChange={setLocationName}
           theme={theme}
           onThemeChange={handleThemeChange}
+          activeOpacity={activeOpacity}
+          onActiveOpacityChange={handleActiveOpacityChange}
+          dimOpacity={dimOpacity}
+          onDimOpacityChange={handleDimOpacityChange}
         />
       ) : (
         <>

@@ -1,11 +1,33 @@
 # HANDOFF.md — Sentinel
 
 **最終更新**: 2026-04-27
-**バージョン**: v1.0.6（リリース準備完了・タグプッシュ待ち）
-**フェーズ**: Phase 1〜5 完了 + v1.0.6 ホットフィックス
+**バージョン**: v1.0.7（リリース準備完了・タグプッシュ待ち）
+**フェーズ**: Phase 1〜5 完了 + v1.0.6 ホットフィックス + v1.0.7 機能追加
 
 > v1.0.5 は LibreHardwareMonitor との連携設計を当初の WMI から HTTP/JSON ベースに切り替えて完成（v0.9.6 で WMI Provider が UI から削除されたため）。詳細は下の Phase 5 セクションを参照。
 > v1.0.6 は v1.0.5 でリグレッションした **CPU 使用率と CPU 周波数の表示バグ**のホットフィックス。
+> v1.0.7 はカレンダーへの**日本祝日表示**と、設定パネルでの**透過率スライダー**追加。
+
+---
+
+## v1.0.7 機能追加
+
+### 内容
+
+- **日本の祝日表示**: ミニカレンダーが `holidays-jp.github.io/api/v1/date.json` から祝日辞書を取得し、祝日セルを `--sunday`（赤）で表示。ツールチップに祝日名、今日が祝日ならカレンダー下に祝日名も表示
+- **透過率スライダー**: 設定パネルに Opacity セクション新設。Active（フォーカス時）と Dim（非アクティブ／クリックスルー時）を 10–100% 5%刻みで個別指定。従来ハードコードだった 1.0 / 0.35 を変更可能に
+
+### 実装方針
+
+- 祝日データは `useHolidays` フック（`src/hooks/useHolidays.ts`）で取得・`localStorage` にキャッシュ。年が変わるか30日以上経過した場合のみ再取得
+- 透過率は `localStorage` の `sentinel-active-opacity` / `sentinel-dim-opacity` で永続化。`App.tsx` の widget-root opacity 計算に反映
+- いずれもフロントエンド完結。Rust バックエンドは無変更
+
+### 影響範囲
+
+- 新規: `src/hooks/useHolidays.ts`
+- 変更: `src/App.tsx`, `src/components/ClockCalendar.tsx`, `src/components/SettingsPanel.tsx`
+- 機能リグレッションなし（既存ハードコード値が新規 localStorage キーのフォールバックとして使われるため、初回起動時の見た目は v1.0.6 と同じ）
 
 ---
 
@@ -114,7 +136,13 @@ v1.0.5 の Phase 5 拡張で `sys.refresh_cpu_frequency()` を polling ループ
 - [x] CPU 周波数表示が基本速度で固定されるバグ修正（`CallNtPowerInformation` 直叩き）
 - [x] バージョン番号 v1.0.6 確定 → `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json` 更新 + `Cargo.lock` 再生成
 
-#### v1.0.7 候補
+#### v1.0.7 で完了
+
+- [x] カレンダーに日本の祝日表示を追加（holidays-jp API + localStorage キャッシュ）
+- [x] 設定パネルに透過率スライダー追加（Active / Dim それぞれ 10–100%）
+- [x] バージョン番号 v1.0.7 確定 → `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json` 更新 + `Cargo.lock` 再生成
+
+#### v1.0.8 以降の候補
 
 - [ ] **LHM `user.config` の pre-seed**: クリーンインストール直後の初回起動から「Start Minimized / Minimize To Tray / Minimize On Close / Remote Web Server → Run」が ON の状態にする。`%LOCALAPPDATA%\LibreHardwareMonitor\<assemblyHash>\<version>\user.config` の XML を Sentinel の Enable Auto-Start 実行時に書き込む方式が最有力。`<assemblyHash>` 部分の決定方法（`StrongName`/`Url` ベースの ApplicationSettings の hashing アルゴリズム）の調査が必要
 - [ ] **LHM v0.9.6 のクラッシュ再発時の対策**: 現状は `%LOCALAPPDATA%\LibreHardwareMonitor` を一度クリアすれば落ち着くが、再発する環境があれば `setup-lhm.ps1` のデフォルトを v0.9.4 にピン留めする。Sentinel 側のパース（HTTP `data.json` 構造）は v0.9.4 でも互換のはず
