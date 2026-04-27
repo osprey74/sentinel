@@ -593,13 +593,17 @@ pub fn run() {
             let metrics_poll = cfg.metrics.poll_interval_seconds;
             let metrics_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                use sysinfo::{Disks, Networks, System};
+                use sysinfo::{CpuRefreshKind, Disks, Networks, System};
 
                 let mut sys = System::new();
                 let mut networks = Networks::new_with_refreshed_list();
 
-                sys.refresh_cpu_usage();
-                sys.refresh_cpu_frequency();
+                // Single combined refresh — splitting cpu_usage and frequency into two
+                // back-to-back calls causes sysinfo to take two PDH samples microseconds
+                // apart on Windows, which makes the % Idle Time counter return ~0 idle
+                // and reports bogus ~100% CPU usage.
+                let cpu_refresh = CpuRefreshKind::new().with_cpu_usage().with_frequency();
+                sys.refresh_cpu_specifics(cpu_refresh);
                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
                 let mut interval =
@@ -608,13 +612,15 @@ pub fn run() {
                 loop {
                     interval.tick().await;
 
-                    sys.refresh_cpu_usage();
-                    sys.refresh_cpu_frequency();
+                    sys.refresh_cpu_specifics(cpu_refresh);
                     sys.refresh_memory();
                     networks.refresh();
 
                     let cpu = sys.global_cpu_usage();
-                    let cpu_freq_mhz = sys.cpus().first().map(|c| c.frequency()).unwrap_or(0);
+                    // sysinfo 0.32 caches CPU frequency after first read on Windows, so
+                    // bypass it with a direct Win32 query for the live Turbo Boost speed.
+                    let cpu_freq_mhz = metrics::cpu_current_freq_mhz()
+                        .unwrap_or_else(|| sys.cpus().first().map(|c| c.frequency()).unwrap_or(0));
                     let total_mem = sys.total_memory();
                     let used_mem = sys.used_memory();
                     let mem = if total_mem > 0 {

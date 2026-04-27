@@ -46,6 +46,37 @@ mod imp {
     use nvml_wrapper::{enum_wrappers::device::TemperatureSensor, Nvml};
     use std::sync::OnceLock;
     use std::time::Duration;
+    use windows::Win32::System::Power::{
+        CallNtPowerInformation, ProcessorInformation, PROCESSOR_POWER_INFORMATION,
+    };
+
+    /// Current CPU frequency (MHz) of logical CPU 0, queried directly via
+    /// `CallNtPowerInformation(ProcessorInformation, ...)`.
+    ///
+    /// sysinfo 0.32 caches frequency on first read on Windows and never
+    /// refreshes it, so its `Cpu::frequency()` returns the base clock instead
+    /// of the current Turbo Boost speed. We bypass that with a direct Win32
+    /// call.
+    pub fn cpu_current_freq_mhz() -> Option<u64> {
+        let nb_cpus = std::thread::available_parallelism().ok()?.get();
+        let size = nb_cpus.checked_mul(std::mem::size_of::<PROCESSOR_POWER_INFORMATION>())?;
+        let mut infos: Vec<PROCESSOR_POWER_INFORMATION> = Vec::with_capacity(nb_cpus);
+        unsafe {
+            if CallNtPowerInformation(
+                ProcessorInformation,
+                None,
+                0,
+                Some(infos.as_mut_ptr() as _),
+                size as u32,
+            )
+            .is_err()
+            {
+                return None;
+            }
+            infos.set_len(nb_cpus);
+        }
+        infos.first().map(|i| i.CurrentMhz as u64)
+    }
 
     fn nvml() -> Option<&'static Nvml> {
         static NVML: OnceLock<Option<Nvml>> = OnceLock::new();
@@ -262,6 +293,19 @@ mod imp {
                 })
             })
             .collect()
+    }
+}
+
+/// Current CPU frequency in MHz. Returns `None` on non-Windows or when the
+/// platform query fails — callers should fall back to sysinfo's value.
+pub fn cpu_current_freq_mhz() -> Option<u64> {
+    #[cfg(windows)]
+    {
+        imp::cpu_current_freq_mhz()
+    }
+    #[cfg(not(windows))]
+    {
+        None
     }
 }
 

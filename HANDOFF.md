@@ -1,10 +1,41 @@
 # HANDOFF.md — Sentinel
 
-**最終更新**: 2026-04-26
-**バージョン**: v1.0.5（CI ビルド完了・ドラフト版動作確認済み・パブリッシュ待ち）
-**フェーズ**: Phase 1〜5 完了
+**最終更新**: 2026-04-27
+**バージョン**: v1.0.6（リリース準備完了・タグプッシュ待ち）
+**フェーズ**: Phase 1〜5 完了 + v1.0.6 ホットフィックス
 
 > v1.0.5 は LibreHardwareMonitor との連携設計を当初の WMI から HTTP/JSON ベースに切り替えて完成（v0.9.6 で WMI Provider が UI から削除されたため）。詳細は下の Phase 5 セクションを参照。
+> v1.0.6 は v1.0.5 でリグレッションした **CPU 使用率と CPU 周波数の表示バグ**のホットフィックス。
+
+---
+
+## v1.0.6 ホットフィックス
+
+### 背景
+
+v1.0.5 の Phase 5 拡張で `sys.refresh_cpu_frequency()` を polling ループに追加した結果、CPU カードに 2 つのリグレッションが発生していた:
+
+1. **CPU 使用率が常時 70〜100% 表示** — Task Manager の値（数 % 〜 20%）と大きく乖離
+2. **CPU 周波数が基本速度（2.10 GHz）で固定** — Turbo Boost 後の現在速度（3.45 GHz など）が反映されない
+
+### 原因
+
+| 症状 | 根本原因 |
+|------|---------|
+| CPU 使用率が過大 | `refresh_cpu_usage()` と `refresh_cpu_frequency()` を連続で呼び出すと、sysinfo 0.32 の Windows 実装ではどちらも内部で `query.refresh()` (= `PdhCollectQueryData()`) を実行する。`\Processor(_Total)\% Idle Time` カウンタは**連続する 2 サンプル間隔**の平均値を返すため、μs オーダーで取られる 2 回目のサンプルでは idle ≒ 0% と計測され、「100 − idle ≒ 100%」が直前の正しい 5 秒平均値を上書きしていた |
+| 周波数が固定 | sysinfo 0.32 の `CpusWrapper::get_frequencies()` は `got_cpu_frequency` フラグで一度しか実行されない。`refresh_cpu_frequency()` を毎ループ呼んでも、起動直後にキャプチャした基本速度をずっと表示し続ける |
+
+### 修正内容
+
+- `lib.rs` のポーリングループ: 2 つの refresh 呼び出しを `sys.refresh_cpu_specifics(CpuRefreshKind::new().with_cpu_usage().with_frequency())` の **1 回呼び出し**に統合
+- `metrics.rs` に `cpu_current_freq_mhz()` を追加: `CallNtPowerInformation(ProcessorInformation, ...)` で `PROCESSOR_POWER_INFORMATION.CurrentMhz` を直接取得し、sysinfo のキャッシュをバイパス
+- `Cargo.toml`: `windows` クレートに `Win32_System_Power` feature を追加
+
+### 影響範囲
+
+- 修正対象: `src-tauri/src/lib.rs`, `src-tauri/src/metrics.rs`, `src-tauri/Cargo.toml`
+- 機能リグレッションなし（GPU/温度/NVMe SMART/LHM 連携はすべて Phase 5 のまま）
+- 非 Windows ビルドへの影響なし（`cpu_current_freq_mhz()` は `cfg(not(windows))` で `None` を返し sysinfo の値にフォールバック）
 
 ---
 
@@ -68,7 +99,7 @@
 #### 依存追加・変更
 
 - `nvml-wrapper = "0.10"`（Windows のみ）— NVIDIA NVML
-- `windows = "0.59"`（Windows のみ）— IOCTL（NVMe）+ ShellExecuteEx（昇格起動）。features: `Win32_Foundation`, `Win32_Security`, `Win32_Storage_FileSystem`, `Win32_System_IO`, `Win32_System_Ioctl`, `Win32_System_Registry`, `Win32_System_Threading`, `Win32_UI_Shell`, `Win32_UI_WindowsAndMessaging`
+- `windows = "0.59"`（Windows のみ）— IOCTL（NVMe）+ ShellExecuteEx（昇格起動）+ CallNtPowerInformation（v1.0.6 で追加: 現在 CPU 周波数）。features: `Win32_Foundation`, `Win32_Security`, `Win32_Storage_FileSystem`, `Win32_System_IO`, `Win32_System_Ioctl`, `Win32_System_Power`, `Win32_System_Registry`, `Win32_System_Threading`, `Win32_UI_Shell`, `Win32_UI_WindowsAndMessaging`
 - `reqwest` に `"blocking"` feature を追加（LHM HTTP 取得を `spawn_blocking` 内で行うため）
 - ~~`wmi = "0.14"`~~ — 当初導入したが、LHM v0.9.6 で WMI Provider が削除されたため**削除済み**
 
@@ -77,12 +108,19 @@
 - [x] `pwsh scripts/setup-lhm.ps1` を GitHub Actions のワークフローに組み込み（Windows ジョブのみ）
 - [x] バージョン番号 v1.0.5 確定 → `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json` 更新 + `Cargo.lock` 再生成
 
-#### v1.0.6 候補
+#### v1.0.6 で完了
+
+- [x] CPU 使用率の過大表示バグ修正（PDH サンプル間隔の問題）
+- [x] CPU 周波数表示が基本速度で固定されるバグ修正（`CallNtPowerInformation` 直叩き）
+- [x] バージョン番号 v1.0.6 確定 → `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json` 更新 + `Cargo.lock` 再生成
+
+#### v1.0.7 候補
 
 - [ ] **LHM `user.config` の pre-seed**: クリーンインストール直後の初回起動から「Start Minimized / Minimize To Tray / Minimize On Close / Remote Web Server → Run」が ON の状態にする。`%LOCALAPPDATA%\LibreHardwareMonitor\<assemblyHash>\<version>\user.config` の XML を Sentinel の Enable Auto-Start 実行時に書き込む方式が最有力。`<assemblyHash>` 部分の決定方法（`StrongName`/`Url` ベースの ApplicationSettings の hashing アルゴリズム）の調査が必要
 - [ ] **LHM v0.9.6 のクラッシュ再発時の対策**: 現状は `%LOCALAPPDATA%\LibreHardwareMonitor` を一度クリアすれば落ち着くが、再発する環境があれば `setup-lhm.ps1` のデフォルトを v0.9.4 にピン留めする。Sentinel 側のパース（HTTP `data.json` 構造）は v0.9.4 でも互換のはず
 - [ ] **LHM HTTP サーバのポート番号を Sentinel 設定で変更可能に**（現状 8085 ハードコード）
 - [ ] About / クレジット表示に LHM の MPL-2.0 ライセンス表記を追加（現在は SettingsPanel フッターのみ）
+- [ ] **sysinfo クレートを 0.38 系へアップデート検討**: 0.32 のまま運用しているが、Windows 周辺で挙動が変わっている可能性がある（特に CPU 使用率・周波数の取得 API）。アップデート時に v1.0.6 のワークアラウンドが不要になるか確認
 
 #### v1.0.5 リリース時に観測されたトラブル（記録）
 
