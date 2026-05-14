@@ -45,6 +45,11 @@
     ],
     "resources": {
       "resources/lhm/**/*": "resources/lhm/"
+    },
+    "windows": {
+      "nsis": {
+        "installerHooks": "./installer.nsh"
+      }
     }
   }
 }

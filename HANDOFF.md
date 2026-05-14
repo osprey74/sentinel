@@ -16,18 +16,22 @@
 ### 内容
 
 - **Self-Hosted ダウン時の経過時間表示**: ヘルスチェック対象が応答しなくなった場合、従来の `timeout` 表示から「最後に応答してから何秒経過したか」を秒単位で表示（例: `45s`）。1 秒刻みでカウントアップし、復旧時は通常の `123ms` 表示に戻る。一度も応答実績がない（起動直後から失敗継続）場合は従来通り `timeout`
+- **NSIS インストーラに pre-install / pre-uninstall フック追加**: 上書き対象の DLL を握っているバックグラウンドプロセス（`Sentinel.exe`, `LibreHardwareMonitor.exe`）をインストール前に強制終了。これがないと、トレイに常駐したまま再インストールを走らせた際に `Aga.Controls.dll` などで `Error opening file for writing` が出る
 
 ### 実装方針
 
 - Rust 側 (`services.rs`): `HealthResult` に `last_success_at: Option<u64>`（epoch ms）を追加。`poll_health` が `LastSuccessMap = Arc<Mutex<HashMap<String, u64>>>` を受け取り、ok/warn（has_response = true）時に現在時刻で更新、crit 時はそのまま据え置く
 - `lib.rs`: ポーリングタスク用に `health_last_success_map` を生成し、長期保持。`set_health_targets` の即時再ポーリングはエフェメラル Map で済ませる（次サイクルで本流の Map に再収束）
 - フロントエンド (`HealthCheck.tsx`): `useTicker(enabled)` フックで、ダウン中のターゲットがあるときだけ 1 秒間隔で再レンダリング。`latency === null && lastSuccessAt !== null` のときに `Math.floor((Date.now() - lastSuccessAt) / 1000)` を `Xs` 形式で表示
+- インストーラフック: `src-tauri/installer.nsh` に `NSIS_HOOK_PREINSTALL` / `NSIS_HOOK_PREUNINSTALL` を定義し、`taskkill /F /T /IM` で両プロセスを終了 → 500ms スリープでハンドル解放を待つ。`tauri.conf.json` の `bundle.windows.nsis.installerHooks` から参照
 
 ### 影響範囲
 
-- 変更: `src-tauri/src/services.rs`, `src-tauri/src/lib.rs`, `src/components/HealthCheck.tsx`, `src/types/index.ts`
+- 変更: `src-tauri/src/services.rs`, `src-tauri/src/lib.rs`, `src/components/HealthCheck.tsx`, `src/types/index.ts`, `src-tauri/tauri.conf.json`
+- 新規: `src-tauri/installer.nsh`
 - バックエンド・フロント双方の `HealthResult` / `HealthTarget` に新フィールド追加（serde camelCase で `lastSuccessAt`）
 - ダウン中ターゲットが無い時のみ 1 秒タイマーが停止するため、平常時の負荷は実質ゼロ
+- フックは Windows ビルドのみに影響、macOS バンドルには無関係
 
 ---
 
@@ -166,6 +170,7 @@ v1.0.5 の Phase 5 拡張で `sys.refresh_cpu_frequency()` を polling ループ
 #### v1.0.8 で完了
 
 - [x] Self-Hosted ヘルスチェックのダウン時に最後の応答からの経過秒数を表示（`timeout` から `Xs` ベースへ）
+- [x] NSIS インストーラ pre-install / pre-uninstall フックで `Sentinel.exe` / `LibreHardwareMonitor.exe` を強制終了（バンドル DLL ロックの解消）
 - [x] バージョン番号 v1.0.8 確定 → `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json` 更新 + `Cargo.lock` 再生成
 
 #### v1.0.9 以降の候補
