@@ -1,12 +1,33 @@
 # HANDOFF.md — Sentinel
 
-**最終更新**: 2026-04-27
-**バージョン**: v1.0.7（リリース準備完了・タグプッシュ待ち）
-**フェーズ**: Phase 1〜5 完了 + v1.0.6 ホットフィックス + v1.0.7 機能追加
+**最終更新**: 2026-05-14
+**バージョン**: v1.0.8（リリース準備完了・タグプッシュ待ち）
+**フェーズ**: Phase 1〜5 完了 + v1.0.6 ホットフィックス + v1.0.7 / v1.0.8 機能追加
 
 > v1.0.5 は LibreHardwareMonitor との連携設計を当初の WMI から HTTP/JSON ベースに切り替えて完成（v0.9.6 で WMI Provider が UI から削除されたため）。詳細は下の Phase 5 セクションを参照。
 > v1.0.6 は v1.0.5 でリグレッションした **CPU 使用率と CPU 周波数の表示バグ**のホットフィックス。
 > v1.0.7 はカレンダーへの**日本祝日表示**と、設定パネルでの**透過率スライダー**追加。
+> v1.0.8 は Self-Hosted ヘルスチェックがダウンした際の**経過時間表示**追加。
+
+---
+
+## v1.0.8 機能追加
+
+### 内容
+
+- **Self-Hosted ダウン時の経過時間表示**: ヘルスチェック対象が応答しなくなった場合、従来の `timeout` 表示から「最後に応答してから何秒経過したか」を秒単位で表示（例: `45s`）。1 秒刻みでカウントアップし、復旧時は通常の `123ms` 表示に戻る。一度も応答実績がない（起動直後から失敗継続）場合は従来通り `timeout`
+
+### 実装方針
+
+- Rust 側 (`services.rs`): `HealthResult` に `last_success_at: Option<u64>`（epoch ms）を追加。`poll_health` が `LastSuccessMap = Arc<Mutex<HashMap<String, u64>>>` を受け取り、ok/warn（has_response = true）時に現在時刻で更新、crit 時はそのまま据え置く
+- `lib.rs`: ポーリングタスク用に `health_last_success_map` を生成し、長期保持。`set_health_targets` の即時再ポーリングはエフェメラル Map で済ませる（次サイクルで本流の Map に再収束）
+- フロントエンド (`HealthCheck.tsx`): `useTicker(enabled)` フックで、ダウン中のターゲットがあるときだけ 1 秒間隔で再レンダリング。`latency === null && lastSuccessAt !== null` のときに `Math.floor((Date.now() - lastSuccessAt) / 1000)` を `Xs` 形式で表示
+
+### 影響範囲
+
+- 変更: `src-tauri/src/services.rs`, `src-tauri/src/lib.rs`, `src/components/HealthCheck.tsx`, `src/types/index.ts`
+- バックエンド・フロント双方の `HealthResult` / `HealthTarget` に新フィールド追加（serde camelCase で `lastSuccessAt`）
+- ダウン中ターゲットが無い時のみ 1 秒タイマーが停止するため、平常時の負荷は実質ゼロ
 
 ---
 
@@ -142,7 +163,12 @@ v1.0.5 の Phase 5 拡張で `sys.refresh_cpu_frequency()` を polling ループ
 - [x] 設定パネルに透過率スライダー追加（Active / Dim それぞれ 10–100%）
 - [x] バージョン番号 v1.0.7 確定 → `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json` 更新 + `Cargo.lock` 再生成
 
-#### v1.0.8 以降の候補
+#### v1.0.8 で完了
+
+- [x] Self-Hosted ヘルスチェックのダウン時に最後の応答からの経過秒数を表示（`timeout` から `Xs` ベースへ）
+- [x] バージョン番号 v1.0.8 確定 → `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json` 更新 + `Cargo.lock` 再生成
+
+#### v1.0.9 以降の候補
 
 - [ ] **LHM `user.config` の pre-seed**: クリーンインストール直後の初回起動から「Start Minimized / Minimize To Tray / Minimize On Close / Remote Web Server → Run」が ON の状態にする。`%LOCALAPPDATA%\LibreHardwareMonitor\<assemblyHash>\<version>\user.config` の XML を Sentinel の Enable Auto-Start 実行時に書き込む方式が最有力。`<assemblyHash>` 部分の決定方法（`StrongName`/`Url` ベースの ApplicationSettings の hashing アルゴリズム）の調査が必要
 - [ ] **LHM v0.9.6 のクラッシュ再発時の対策**: 現状は `%LOCALAPPDATA%\LibreHardwareMonitor` を一度クリアすれば落ち着くが、再発する環境があれば `setup-lhm.ps1` のデフォルトを v0.9.4 にピン留めする。Sentinel 側のパース（HTTP `data.json` 構造）は v0.9.4 でも互換のはず

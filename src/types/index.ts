@@ -56,6 +56,8 @@ export interface HealthTarget {
   status: StatusLevel;
   latency: number | null;
   url?: string;
+  /** Epoch ms of last response (ok/warn). Used to show elapsed time while down. */
+  lastSuccessAt: number | null;
 }
 
 /** Weather forecast for a single day (Open-Meteo) */

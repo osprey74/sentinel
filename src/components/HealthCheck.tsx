@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-shell";
 import type { HealthTarget, StatusLevel } from "../types";
 import { STATUS_COLORS } from "../types";
@@ -7,6 +8,11 @@ interface Props {
 }
 
 export default function HealthCheck({ health }: Props) {
+  const anyDown = health.some(
+    (h) => h.latency === null && h.lastSuccessAt !== null
+  );
+  const now = useTicker(anyDown);
+
   if (health.length === 0) {
     return null;
   }
@@ -16,20 +22,39 @@ export default function HealthCheck({ health }: Props) {
       <div className="section-label">Self-Hosted</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
         {health.map((h) => (
-          <HealthRow key={h.name} target={h} />
+          <HealthRow key={h.name} target={h} now={now} />
         ))}
       </div>
     </div>
   );
 }
 
-function HealthRow({ target }: { target: HealthTarget }) {
+function useTicker(enabled: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!enabled) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [enabled]);
+  return now;
+}
+
+function HealthRow({ target, now }: { target: HealthTarget; now: number }) {
   const status = target.status as StatusLevel;
   const color = STATUS_COLORS[status] ?? STATUS_COLORS.unknown;
 
-  const latencyLabel = target.latency !== null
-    ? `${target.latency}ms`
-    : "timeout";
+  let latencyLabel: string;
+  if (target.latency !== null) {
+    latencyLabel = `${target.latency}ms`;
+  } else if (target.lastSuccessAt !== null) {
+    const elapsedSec = Math.max(
+      0,
+      Math.floor((now - target.lastSuccessAt) / 1000)
+    );
+    latencyLabel = `${elapsedSec}s`;
+  } else {
+    latencyLabel = "timeout";
+  }
 
   const handleClick = () => {
     if (target.url) {

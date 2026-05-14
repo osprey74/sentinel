@@ -249,9 +249,11 @@ async fn set_health_targets(app: tauri::AppHandle, targets: Vec<HealthTargetJs>)
     let content = toml::to_string_pretty(&cfg).map_err(|e| e.to_string())?;
     std::fs::write(&path, content).map_err(|e| e.to_string())?;
 
-    // Immediate re-poll
+    // Immediate re-poll (uses an ephemeral map; the background polling task
+    // owns the persistent last-success state and refreshes within one cycle).
     let client = reqwest::Client::new();
-    let results = services::poll_health(&client, &cfg).await;
+    let ephemeral = Arc::new(Mutex::new(HashMap::new()));
+    let results = services::poll_health(&client, &cfg, &ephemeral).await;
     let _ = app.emit("health-status", &results);
     Ok(())
 }
@@ -417,6 +419,7 @@ pub fn run() {
     let weather_cache = Arc::new(Mutex::new(Vec::<DayForecast>::new()));
     let svc_status_map: StatusMap = Arc::new(Mutex::new(HashMap::new()));
     let health_status_map: StatusMap = Arc::new(Mutex::new(HashMap::new()));
+    let health_last_success_map: services::LastSuccessMap = Arc::new(Mutex::new(HashMap::new()));
     let drag_locked = Arc::new(AtomicBool::new(false));
     let passthrough = Arc::new(AtomicBool::new(true));
 
@@ -802,12 +805,13 @@ pub fn run() {
                 let health_cfg = cfg.clone();
                 let health_handle = app.handle().clone();
                 let health_prev = health_status_map.clone();
+                let health_last_success = health_last_success_map.clone();
                 tauri::async_runtime::spawn(async move {
                     let client = reqwest::Client::new();
                     let interval_secs = health_cfg.health.poll_interval_seconds;
 
                     loop {
-                        let results = services::poll_health(&client, &health_cfg).await;
+                        let results = services::poll_health(&client, &health_cfg, &health_last_success).await;
                         {
                             let mut prev = health_prev.lock().unwrap();
                             for r in &results {

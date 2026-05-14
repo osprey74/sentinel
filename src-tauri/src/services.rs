@@ -1,6 +1,18 @@
 use crate::config::{AppConfig, HealthTargetConfig, ServiceTargetConfig};
 use serde::Serialize;
-use std::time::{Duration, Instant};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+/// Per-target last-success epoch-ms map (shared across polling cycles)
+pub type LastSuccessMap = Arc<Mutex<HashMap<String, u64>>>;
+
+fn now_epoch_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -17,6 +29,8 @@ pub struct HealthResult {
     pub status: &'static str,
     pub latency: Option<u64>, // milliseconds
     pub url: Option<String>,
+    /// Epoch ms of the most recent response (ok or warn). None until first success.
+    pub last_success_at: Option<u64>,
 }
 
 /// Fetch status from an Atlassian Statuspage API endpoint
@@ -75,7 +89,12 @@ pub async fn poll_services(client: &reqwest::Client, config: &AppConfig) -> Vec<
 }
 
 /// Perform a single health check
-async fn check_health(client: &reqwest::Client, target: &HealthTargetConfig, timeout_ms: u64) -> HealthResult {
+async fn check_health(
+    client: &reqwest::Client,
+    target: &HealthTargetConfig,
+    timeout_ms: u64,
+    prior_last_success_at: Option<u64>,
+) -> HealthResult {
     let timeout = Duration::from_millis(timeout_ms);
     let start = Instant::now();
 
@@ -101,19 +120,38 @@ async fn check_health(client: &reqwest::Client, target: &HealthTargetConfig, tim
         Err(_) => ("crit", false),
     };
 
+    let last_success_at = if has_response {
+        Some(now_epoch_ms())
+    } else {
+        prior_last_success_at
+    };
+
     HealthResult {
         name: target.name.clone(),
         status,
         latency: if has_response { Some(elapsed) } else { None },
         url: Some(target.url.clone()),
+        last_success_at,
     }
 }
 
 /// Perform all health checks
-pub async fn poll_health(client: &reqwest::Client, config: &AppConfig) -> Vec<HealthResult> {
+pub async fn poll_health(
+    client: &reqwest::Client,
+    config: &AppConfig,
+    last_success_map: &LastSuccessMap,
+) -> Vec<HealthResult> {
     let mut results = Vec::new();
     for target in &config.health.targets {
-        let result = check_health(client, target, config.health.timeout_ms).await;
+        let prior = {
+            let map = last_success_map.lock().unwrap();
+            map.get(&target.name).copied()
+        };
+        let result = check_health(client, target, config.health.timeout_ms, prior).await;
+        if let Some(ts) = result.last_success_at {
+            let mut map = last_success_map.lock().unwrap();
+            map.insert(target.name.clone(), ts);
+        }
         results.push(result);
     }
     results
