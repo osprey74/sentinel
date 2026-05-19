@@ -1,17 +1,24 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import ReactMarkdown from "react-markdown";
 import MemoEditor from "./MemoEditor";
 
-const STORAGE_KEY = "sentinel-memo";
-
 export default function MemoSection() {
-  const [content, setContent] = useState<string>(() => localStorage.getItem(STORAGE_KEY) || "");
+  const [content, setContent] = useState<string>("");
   const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    invoke<string>("load_memo")
+      .then(setContent)
+      .catch((e) => console.error("[memo] load failed:", e));
+  }, []);
 
   const handleSave = useCallback((next: string) => {
     setContent(next);
-    localStorage.setItem(STORAGE_KEY, next);
     setEditing(false);
+    invoke("save_memo", { content: next }).catch((e) =>
+      console.error("[memo] save failed:", e),
+    );
   }, []);
 
   const isEmpty = content.trim().length === 0;

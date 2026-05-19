@@ -210,6 +210,12 @@ pub fn config_path() -> PathBuf {
     base.join("sentinel").join("config.toml")
 }
 
+/// Get the memo file path: ~/.config/sentinel/memo.md
+pub fn memo_path() -> PathBuf {
+    let base = dirs_next::config_dir().unwrap_or_else(|| PathBuf::from("."));
+    base.join("sentinel").join("memo.md")
+}
+
 /// Load config from file, creating default if it doesn't exist
 pub fn load_config() -> AppConfig {
     let path = config_path();

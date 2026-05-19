@@ -325,6 +325,28 @@ fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
 }
 
+/// Load memo content from ~/.config/sentinel/memo.md (empty string if missing)
+#[tauri::command]
+fn load_memo() -> Result<String, String> {
+    let path = config::memo_path();
+    if path.exists() {
+        std::fs::read_to_string(&path).map_err(|e| e.to_string())
+    } else {
+        Ok(String::new())
+    }
+}
+
+/// Save memo content to ~/.config/sentinel/memo.md
+#[tauri::command]
+fn save_memo(content: String) -> Result<(), String> {
+    let path = config::memo_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&path, content).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// Save window position to config
 #[tauri::command]
 fn save_window_position(x: i32, y: i32) -> Result<(), String> {
@@ -455,6 +477,8 @@ pub fn run() {
             get_health_targets,
             set_health_targets,
             save_window_position,
+            load_memo,
+            save_memo,
             quit_app,
             get_cached_weather,
             get_autostart,

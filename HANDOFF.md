@@ -1,13 +1,35 @@
 # HANDOFF.md — Sentinel
 
-**最終更新**: 2026-05-14
-**バージョン**: v1.0.8（リリース準備完了・タグプッシュ待ち）
-**フェーズ**: Phase 1〜5 完了 + v1.0.6 ホットフィックス + v1.0.7 / v1.0.8 機能追加
+**最終更新**: 2026-05-19
+**バージョン**: v1.1.0（リリース準備完了・タグプッシュ待ち）
+**フェーズ**: Phase 1〜5 完了 + v1.0.6 ホットフィックス + v1.0.7 / v1.0.8 / v1.1.0 機能追加
 
 > v1.0.5 は LibreHardwareMonitor との連携設計を当初の WMI から HTTP/JSON ベースに切り替えて完成（v0.9.6 で WMI Provider が UI から削除されたため）。詳細は下の Phase 5 セクションを参照。
 > v1.0.6 は v1.0.5 でリグレッションした **CPU 使用率と CPU 周波数の表示バグ**のホットフィックス。
 > v1.0.7 はカレンダーへの**日本祝日表示**と、設定パネルでの**透過率スライダー**追加。
 > v1.0.8 は Self-Hosted ヘルスチェックがダウンした際の**経過時間表示**追加。
+> v1.1.0 はメモ機能の永続化方式を WebView の `localStorage` から Rust 側のファイル I/O に変更し、再起動を跨いだ確実な保存を実現。
+
+---
+
+## v1.1.0 機能追加
+
+### 内容
+
+- **メモ永続化のバグ修正**: メモを編集・保存後にアプリを再起動すると編集前の内容に戻る問題を解消。Tauri v2 WebView の `localStorage` は環境によって再起動を跨いだ永続化が信頼できないため、Rust 側でファイル I/O する方式に切り替え
+- メモは `~/.config/sentinel/memo.md`（Windows: `%APPDATA%\sentinel\memo.md`）に Markdown ファイルとして保存。ユーザーが任意のエディタで直接編集することも可能
+
+### 実装方針
+
+- Rust 側 (`config.rs`): `memo_path()` を追加し、`config_path()` と同じディレクトリに `memo.md` を配置
+- `lib.rs`: `load_memo()` / `save_memo(content)` の Tauri コマンドを追加し、`invoke_handler` に登録
+- フロントエンド (`MemoSection.tsx`): `localStorage` を撤去。マウント時に `invoke<string>("load_memo")` で読み込み、保存時に `invoke("save_memo", { content })` で書き込み
+
+### 影響範囲
+
+- 変更: `src-tauri/src/config.rs`, `src-tauri/src/lib.rs`, `src/components/MemoSection.tsx`
+- 新規ファイル: なし
+- **互換性注意**: v1.0.2 以降の `localStorage` に保存されていたメモは自動移行されない。v1.1.0 で初めて起動するとメモが空になるため、必要に応じて旧バージョンでメモを開いてコピーし、新バージョンで貼り直す
 
 ---
 
@@ -173,7 +195,14 @@ v1.0.5 の Phase 5 拡張で `sys.refresh_cpu_frequency()` を polling ループ
 - [x] NSIS インストーラ pre-install / pre-uninstall フックで `Sentinel.exe` / `LibreHardwareMonitor.exe` を強制終了（バンドル DLL ロックの解消）
 - [x] バージョン番号 v1.0.8 確定 → `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json` 更新 + `Cargo.lock` 再生成
 
-#### v1.0.9 以降の候補
+#### v1.1.0 で完了
+
+- [x] メモ機能の永続化方式を `localStorage` から Rust 側ファイル I/O へ変更（`~/.config/sentinel/memo.md`）
+- [x] `load_memo` / `save_memo` Tauri コマンドを追加
+- [x] `config.rs` に `memo_path()` を追加
+- [x] バージョン番号 v1.1.0 確定 → `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json` 更新 + `Cargo.lock` 再生成
+
+#### v1.1.1 以降の候補
 
 - [ ] **LHM `user.config` の pre-seed**: クリーンインストール直後の初回起動から「Start Minimized / Minimize To Tray / Minimize On Close / Remote Web Server → Run」が ON の状態にする。`%LOCALAPPDATA%\LibreHardwareMonitor\<assemblyHash>\<version>\user.config` の XML を Sentinel の Enable Auto-Start 実行時に書き込む方式が最有力。`<assemblyHash>` 部分の決定方法（`StrongName`/`Url` ベースの ApplicationSettings の hashing アルゴリズム）の調査が必要
 - [ ] **LHM v0.9.6 のクラッシュ再発時の対策**: 現状は `%LOCALAPPDATA%\LibreHardwareMonitor` を一度クリアすれば落ち着くが、再発する環境があれば `setup-lhm.ps1` のデフォルトを v0.9.4 にピン留めする。Sentinel 側のパース（HTTP `data.json` 構造）は v0.9.4 でも互換のはず
